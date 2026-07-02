@@ -1,5 +1,6 @@
 package Edusecurity.controller;
 
+import Edusecurity.dto.ProgresoDTO;
 import Edusecurity.entity.ProgresoUsuario;
 import Edusecurity.service.ProgresoService;
 import org.springframework.web.bind.annotation.*;
@@ -11,36 +12,49 @@ import java.util.List;
 @CrossOrigin("*")
 public class ProgresoController {
 
-    private final ProgresoService progresoService;
+    private final ProgresoService service;
 
-    public ProgresoController(ProgresoService progresoService) {
-        this.progresoService = progresoService;
-    }
-
-    @GetMapping
-    public List<ProgresoUsuario> obtenerTodos() {
-        return progresoService.obtenerTodos();
-    }
-
-    @GetMapping("/{id}")
-    public ProgresoUsuario obtenerPorId(@PathVariable Long id) {
-        return progresoService.obtenerPorId(id);
+    public ProgresoController(ProgresoService service) {
+        this.service = service;
     }
 
     @PostMapping
-    public ProgresoUsuario crear(@RequestBody ProgresoUsuario progreso) {
-        return progresoService.guardar(progreso);
+    public ProgresoUsuario guardar(
+            @RequestBody ProgresoDTO dto) {
+
+        return service.guardar(dto);
+
     }
 
-    @PutMapping("/{id}")
-    public ProgresoUsuario actualizar(@PathVariable Long id,
-                                      @RequestBody ProgresoUsuario progreso) {
-        progreso.setId(id);
-        return progresoService.guardar(progreso);
+    @GetMapping
+    public List<ProgresoUsuario> listar() {
+
+        return service.listar();
+
+    }
+
+    @GetMapping("/{id}")
+    public ProgresoUsuario obtener(
+            @PathVariable Long id) {
+
+        return service.obtenerPorId(id);
+
+    }
+
+    @GetMapping("/usuario/{id}")
+    public List<ProgresoUsuario> buscarUsuario(
+            @PathVariable Long id) {
+
+        return service.buscarPorUsuario(id);
+
     }
 
     @DeleteMapping("/{id}")
-    public void eliminar(@PathVariable Long id) {
-        progresoService.eliminar(id);
+    public void eliminar(
+            @PathVariable Long id) {
+
+        service.eliminar(id);
+
     }
+
 }

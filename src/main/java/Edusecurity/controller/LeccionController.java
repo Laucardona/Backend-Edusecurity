@@ -1,5 +1,6 @@
 package Edusecurity.controller;
 
+import Edusecurity.dto.LeccionDTO;
 import Edusecurity.entity.Leccion;
 import Edusecurity.service.LeccionService;
 import org.springframework.web.bind.annotation.*;
@@ -11,38 +12,49 @@ import java.util.List;
 @CrossOrigin("*")
 public class LeccionController {
 
-    private final LeccionService leccionService;
+    private final LeccionService service;
 
-    public LeccionController(LeccionService leccionService) {
-        this.leccionService = leccionService;
-    }
-
-    @GetMapping
-    public List<Leccion> obtenerTodas() {
-        return leccionService.obtenerTodas();
-    }
-
-    @GetMapping("/{id}")
-    public Leccion obtenerPorId(@PathVariable Long id) {
-        return leccionService.obtenerPorId(id);
+    public LeccionController(LeccionService service) {
+        this.service = service;
     }
 
     @PostMapping
-    public Leccion crear(@RequestBody Leccion leccion) {
-        return leccionService.guardar(leccion);
+    public Leccion guardar(
+            @RequestBody LeccionDTO dto) {
+
+        return service.guardar(dto);
+
     }
 
-    @PutMapping("/{id}")
-    public Leccion actualizar(@PathVariable Long id,
-                              @RequestBody Leccion leccion) {
-        leccion.setId(id);
-        return leccionService.guardar(leccion);
+    @GetMapping
+    public List<Leccion> listar() {
+
+        return service.listar();
+
+    }
+
+    @GetMapping("/{id}")
+    public Leccion obtener(
+            @PathVariable Long id) {
+
+        return service.obtenerPorId(id);
+
+    }
+
+    @GetMapping("/modulo/{id}")
+    public List<Leccion> buscarPorModulo(
+            @PathVariable Long id) {
+
+        return service.buscarPorModulo(id);
+
     }
 
     @DeleteMapping("/{id}")
-    public void eliminar(@PathVariable Long id) {
-        leccionService.eliminar(id);
-    }
-}
-    
+    public void eliminar(
+            @PathVariable Long id) {
 
+        service.eliminar(id);
+
+    }
+
+}

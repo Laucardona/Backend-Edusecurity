@@ -1,9 +1,9 @@
 package Edusecurity.entity;
 
 import jakarta.persistence.*;
+import java.util.List;
 
 @Entity
-@Table(name = "lecciones")
 public class Leccion {
 
     @Id
@@ -12,18 +12,21 @@ public class Leccion {
 
     private String titulo;
 
-    @Column(length = 2000)
+    private String descripcion;
+
     private String contenido;
 
-    public Leccion() {
-    }
+    @ManyToOne
+    @JoinColumn(name = "modulo_id")
+    private ModuloEducativo modulo;
 
-    public Leccion(Long id, String titulo, String contenido) {
-        this.id = id;
-        this.titulo = titulo;
-        this.contenido = contenido;
-    }
+    @OneToMany(mappedBy = "leccion")
+    private List<ProgresoUsuario> progresos;
 
+    // Constructor vacío
+    public Leccion() {}
+
+    // Getters y Setters
     public Long getId() {
         return id;
     }
@@ -40,11 +43,35 @@ public class Leccion {
         this.titulo = titulo;
     }
 
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
+    }
+
     public String getContenido() {
         return contenido;
     }
 
     public void setContenido(String contenido) {
         this.contenido = contenido;
+    }
+
+    public ModuloEducativo getModulo() {
+        return modulo;
+    }
+
+    public void setModulo(ModuloEducativo modulo) {
+        this.modulo = modulo;
+    }
+
+    public List<ProgresoUsuario> getProgresos() {
+        return progresos;
+    }
+
+    public void setProgresos(List<ProgresoUsuario> progresos) {
+        this.progresos = progresos;
     }
 }

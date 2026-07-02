@@ -1,12 +1,10 @@
 package Edusecurity.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import Edusecurity.entity.ModuloEducativo;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface ModuloRepository
-extends JpaRepository<
-        ModuloEducativo,
-        Long> {
+@Repository
+public interface ModuloRepository extends JpaRepository<ModuloEducativo, Long> {
 
 }
