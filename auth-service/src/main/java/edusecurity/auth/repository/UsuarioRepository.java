@@ -1,6 +1,8 @@
 package edusecurity.auth.repository;
 
 import edusecurity.auth.entity.Usuario;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,4 +24,14 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
                                OR LOWER(u.correo) LIKE LOWER(CONCAT('%', :q, '%')))
             """)
     Page<Usuario> buscar(@Param("q") String q, Pageable pageable);
+
+    // ------------------------------------------------------------------ métricas (HU33)
+
+    long countByActivoTrue();
+
+    long countByBloqueadoHastaAfter(Instant ahora);
+
+    /** [nombre del rol (null si no tiene), cantidad de usuarios]. */
+    @Query("SELECT r.nombre, COUNT(u) FROM Usuario u LEFT JOIN u.rol r GROUP BY r.nombre")
+    List<Object[]> contarPorRol();
 }

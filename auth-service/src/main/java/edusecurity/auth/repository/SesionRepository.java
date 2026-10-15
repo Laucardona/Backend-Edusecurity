@@ -24,4 +24,14 @@ public interface SesionRepository extends JpaRepository<Sesion, Long> {
             WHERE s.usuario.id = :usuarioId AND s.revocadaEn IS NULL
             """)
     int revocarTodas(@Param("usuarioId") Long usuarioId, @Param("ahora") Instant ahora);
+
+    // ------------------------------------------------------------------ métricas (HU33)
+
+    /** Inicios de sesión con creadaEn en [inicio, fin). */
+    @Query("SELECT COUNT(s) FROM Sesion s WHERE s.creadaEn >= :inicio AND s.creadaEn < :fin")
+    long contarCreadasEntre(@Param("inicio") Instant inicio, @Param("fin") Instant fin);
+
+    /** Usuarios distintos que iniciaron sesión en [inicio, fin). */
+    @Query("SELECT COUNT(DISTINCT s.usuario.id) FROM Sesion s WHERE s.creadaEn >= :inicio AND s.creadaEn < :fin")
+    long contarUsuariosConSesionEntre(@Param("inicio") Instant inicio, @Param("fin") Instant fin);
 }

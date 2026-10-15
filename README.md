@@ -36,7 +36,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 | `api-gateway` | 8080 | Punto único de entrada: JWT, CORS, rutas, Circuit Breaker, Swagger agregado | — |
 | `auth-service` | 8081 | Registro, login, refresh token, usuarios y roles (emisor de JWT) | `edusecurity_auth` |
 | `contenido-service` | 8082 | Módulos educativos y lecciones (CRUD) | `edusecurity_contenido` |
-| `progreso-service` | 8083 | Progreso por lección, resúmenes y estadísticas (consulta vía Feign) | `edusecurity_progreso` |
+| `progreso-service` | 8083 | Progreso por lección, resúmenes, estadísticas y panel administrativo (módulo `analitica`, HU33) | `edusecurity_progreso` |
 | `simulacion-service` | 8084 | Laboratorios de phishing con bandeja simulada (HU43) y laboratorios virtuales guiados por pasos (HU44), con tiempo límite y retroalimentación | `edusecurity_simulacion` |
 | `eureka-server` | 8761 | Descubrimiento de servicios | — |
 | `config-server` | 8888 | Configuración centralizada compartida | — |
@@ -162,6 +162,7 @@ El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 | GET | `/api/progreso/simulaciones/mias` | Autenticado | Mis simulaciones terminadas (phishing y laboratorios guiados), las más recientes primero |
 | GET | `/api/progreso/resumen/mio` | Autenticado | Mi avance por módulo, con `simulacionesCompletadas` y `simulacionesAprobadas` |
 | GET | `/api/progreso/resumen/global` | ADMIN | Estadísticas globales |
+| GET | `/api/analitica/panel?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` | ADMIN | Panel administrativo (HU33): usuarios y simulaciones del periodo, más el estado actual del progreso en lecciones (por defecto los últimos 30 días, máximo 366). `certificados` es `null` hasta implementar RF22. Si auth-service no responde, `usuarios` es `null` y aparece en `fuentesNoDisponibles` |
 | GET | `/api/simulaciones`, `/api/simulaciones/{uuid}`, `/api/simulaciones/indicadores` | Autenticado | Catálogo de escenarios (filtro `tipo`: phishing o `LABORATORIO`) y señales de alerta |
 | POST | `/api/simulaciones/{uuid}/sesiones` | Autenticado | Iniciar un laboratorio (bandeja o primer paso + tiempo límite) |
 | PUT | `/api/simulaciones/sesiones/{sesion}/respuestas/{mensajeId}` | Dueño | Phishing: clasificar un mensaje, elegir acción y marcar señales (400 en un laboratorio guiado) |
@@ -175,6 +176,7 @@ Endpoints internos (servicio a servicio, solo con `X-Service-Key`, rol `INTERNAL
 | Método | Ruta | Servicio | Descripción |
 |---|---|---|---|
 | POST | `/internal/progreso/simulaciones` | progreso-service | Registra el resultado de una simulación terminada. Idempotente por `sesionUuid`: 201 al crear, 200 con el registro existente si se repite |
+| GET | `/internal/usuarios/metricas?desde&hasta` | auth-service | Métricas para el panel: total, activos, por rol, bloqueados ahora, usuarios con sesión e inicios de sesión en el periodo. Los usuarios no guardan fecha de creación, así que no hay "nuevos en el periodo" (queda como posible migración futura) |
 
 ### Flujo simulación → progreso (I7.4)
 
@@ -222,6 +224,7 @@ Para ejecutar un servicio desde VS Code o IntelliJ, define `JWT_SECRET` e `INTER
 
 - **Database por servicio**: cada microservicio posee su esquema y sus migraciones; no hay claves foráneas entre bases de datos, solo IDs cruzados.
 - **Sin relaciones JPA entre servicios**: `progreso-service` denormaliza consultando a los otros servicios con **OpenFeign** (+ `X-Service-Key`).
+- **Analítica dentro de progreso-service**: el panel administrativo (HU33) vive en el paquete `edusecurity.progreso.analitica`, no en un servicio nuevo. ADR-001 y el diseño permiten que analítica empiece como módulo de formación/progreso y se extraiga después sin cambiar contratos: el Gateway ya enruta `/api/analitica/**` aparte (`analitica-ruta`), así que extraerlo solo cambia el `uri`.
 - **JWT doblemente validado**: el Gateway rechaza tokens inválidos antes de enrutar y cada servicio vuelve a validar (nadie puede saltarse el Gateway si llega directamente a la red interna).
 - **Config centralizada opcional**: los servicios arrancan solos con sus `application.properties`; el Config Server permite sobreescribir secretos/config compartida en un solo lugar.
 

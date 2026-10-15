@@ -79,6 +79,27 @@ spring:
                       factor: 2
                       basedOnPreviousValue: false
 
+            # Analítica (HU33): por ahora es un módulo de progreso-service (ADR-001); si se extrae
+            # a su propio servicio, solo cambia el uri.
+            - id: analitica-ruta
+              uri: lb://edusecurity-progreso
+              predicates:
+                - Path=/api/analitica/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: progresoCB
+                    fallbackUri: forward:/fallback/progreso
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    backoff:
+                      firstBackoff: 200ms
+                      maxBackoff: 1s
+                      factor: 2
+                      basedOnPreviousValue: false
+
             - id: simulacion-ruta
               uri: lb://edusecurity-simulacion
               predicates:
