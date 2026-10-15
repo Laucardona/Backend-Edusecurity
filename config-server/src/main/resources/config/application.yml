@@ -4,7 +4,7 @@
 app:
   jwt:
     # El secreto NO va aquí: cada servicio lo lee de la variable de entorno JWT_SECRET.
-    access-expiration: 10h
+    access-expiration: 15m
     refresh-expiration: 7d
   security:
     # La clave interna (X-Service-Key) la lee cada servicio de INTERNAL_API_KEY.

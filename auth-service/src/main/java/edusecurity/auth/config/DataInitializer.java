@@ -49,7 +49,7 @@ public class DataInitializer implements CommandLineRunner {
             usuario.setRol(admin);
             usuarioRepository.save(usuario);
 
-            log.warn("Usuario administrador creado: {} / {}", ADMIN_CORREO, ADMIN_PASSWORD);
+            log.warn("Usuario administrador creado: {}. Cambie la contraseña inicial.", ADMIN_CORREO);
         }
     }
 

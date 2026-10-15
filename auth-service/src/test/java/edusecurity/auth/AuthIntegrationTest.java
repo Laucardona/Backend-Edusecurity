@@ -63,7 +63,7 @@ class AuthIntegrationTest {
     @Order(2)
     void registraEstudianteYNoExponeContraseña() throws Exception {
         String body = """
-                {"nombre":"Estudiante Demo","correo":"estudiante@correo.com","password":"Secreta123"}
+                {"nombre":"Estudiante Demo","correo":"estudiante@correo.com","password":"Secreta123*"}
                 """;
 
         mockMvc.perform(post("/api/auth/register")
@@ -79,7 +79,7 @@ class AuthIntegrationTest {
     @Order(3)
     void rechazaCorreoDuplicado() throws Exception {
         String body = """
-                {"nombre":"Otro","correo":"estudiante@correo.com","password":"Secreta123"}
+                {"nombre":"Otro","correo":"estudiante@correo.com","password":"Secreta123*"}
                 """;
 
         mockMvc.perform(post("/api/auth/register")
@@ -105,7 +105,7 @@ class AuthIntegrationTest {
     @Order(5)
     void estudianteIniciaSesionYObtieneSuPerfil() throws Exception {
         String body = """
-                {"correo":"estudiante@correo.com","password":"Secreta123"}
+                {"correo":"estudiante@correo.com","password":"Secreta123*"}
                 """;
 
         String respuesta = mockMvc.perform(post("/api/auth/login")
@@ -126,7 +126,7 @@ class AuthIntegrationTest {
     @Order(6)
     void refreshTokenGeneraNuevoAccessToken() throws Exception {
         String body = """
-                {"correo":"estudiante@correo.com","password":"Secreta123"}
+                {"correo":"estudiante@correo.com","password":"Secreta123*"}
                 """;
 
         String respuesta = mockMvc.perform(post("/api/auth/login")

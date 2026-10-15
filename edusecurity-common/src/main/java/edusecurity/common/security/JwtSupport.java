@@ -8,6 +8,7 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 
 /**
@@ -37,6 +38,7 @@ public class JwtSupport {
     private String generate(String correo, Long usuarioId, String rol, String tipo, java.time.Duration ttl) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(correo)
                 .claim("uid", usuarioId)
                 .claim("rol", rol)

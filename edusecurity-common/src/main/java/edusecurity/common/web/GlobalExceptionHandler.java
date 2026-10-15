@@ -2,6 +2,7 @@ package edusecurity.common.web;
 
 import edusecurity.common.error.ApiError;
 import edusecurity.common.error.FieldErrorDetail;
+import edusecurity.common.exception.AccountLockedException;
 import edusecurity.common.exception.BadRequestException;
 import edusecurity.common.exception.ConflictException;
 import edusecurity.common.exception.ForbiddenException;
@@ -60,6 +61,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ApiError> forbidden(ForbiddenException ex, HttpServletRequest request) {
         return build(request, HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ApiError> locked(AccountLockedException ex, HttpServletRequest request) {
+        return build(request, HttpStatus.LOCKED, ex.getMessage());
     }
 
     @ExceptionHandler(ServiceUnavailableException.class)

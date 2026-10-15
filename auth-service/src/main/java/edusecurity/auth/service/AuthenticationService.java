@@ -1,7 +1,9 @@
 package edusecurity.auth.service;
 
 import edusecurity.auth.dto.AuthResponse;
+import edusecurity.auth.dto.FortalezaPasswordResponse;
 import edusecurity.auth.dto.LoginRequest;
+import edusecurity.auth.dto.LogoutRequest;
 import edusecurity.auth.dto.MiCuentaRequest;
 import edusecurity.auth.dto.RegisterRequest;
 import edusecurity.auth.dto.UsuarioResponse;
@@ -9,6 +11,7 @@ import edusecurity.auth.entity.Rol;
 import edusecurity.auth.entity.Usuario;
 import edusecurity.auth.repository.RolRepository;
 import edusecurity.auth.repository.UsuarioRepository;
+import edusecurity.auth.validation.PoliticaPassword;
 import edusecurity.common.exception.BadRequestException;
 import edusecurity.common.exception.ConflictException;
 import edusecurity.common.exception.InvalidTokenException;
@@ -16,9 +19,11 @@ import edusecurity.common.exception.ResourceNotFoundException;
 import edusecurity.common.security.JwtProperties;
 import edusecurity.common.security.JwtSupport;
 import edusecurity.common.security.TokenInfo;
+import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -39,6 +44,8 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final JwtSupport jwtSupport;
     private final JwtProperties jwtProperties;
+    private final IntentosLoginService intentosLoginService;
+    private final SesionService sesionService;
 
     public AuthenticationService(AuthenticationManager authenticationManager,
                                  UserDetailsService userDetailsService,
@@ -46,7 +53,9 @@ public class AuthenticationService {
                                  RolRepository rolRepository,
                                  PasswordEncoder passwordEncoder,
                                  JwtSupport jwtSupport,
-                                 JwtProperties jwtProperties) {
+                                 JwtProperties jwtProperties,
+                                 IntentosLoginService intentosLoginService,
+                                 SesionService sesionService) {
         this.authenticationManager = authenticationManager;
         this.userDetailsService = userDetailsService;
         this.usuarioRepository = usuarioRepository;
@@ -54,6 +63,8 @@ public class AuthenticationService {
         this.passwordEncoder = passwordEncoder;
         this.jwtSupport = jwtSupport;
         this.jwtProperties = jwtProperties;
+        this.intentosLoginService = intentosLoginService;
+        this.sesionService = sesionService;
     }
 
     /**
@@ -82,20 +93,41 @@ public class AuthenticationService {
         return UsuarioResponse.from(guardado);
     }
 
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.correo().trim().toLowerCase(),
-                        request.password()));
+    /**
+     * Inicio de sesión con bloqueo temporal tras varios intentos fallidos (HU38).
+     * Cada login abre una sesión nueva que queda en el historial (HU37).
+     */
+    @Transactional
+    public AuthResponse login(LoginRequest request, ClienteInfo cliente) {
+        String correo = request.correo().trim().toLowerCase();
+        intentosLoginService.verificarNoBloqueado(correo);
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(correo, request.password()));
+        } catch (BadCredentialsException ex) {
+            Instant bloqueadoHasta = intentosLoginService.registrarFallo(correo);
+            if (bloqueadoHasta != null) {
+                throw intentosLoginService.bloqueada(bloqueadoHasta);
+            }
+            throw ex;
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(authentication.getName());
-        return emitirTokens(userDetails.getUsername());
+        Usuario usuario = buscarPorCorreo(userDetails.getUsername());
+        intentosLoginService.registrarExito(usuario);
+
+        AuthResponse respuesta = emitirTokens(usuario);
+        sesionService.abrir(usuario, respuesta.refreshToken(), cliente);
+        return respuesta;
     }
 
     /**
-     * Rota el refresh token por uno nuevo (rotación simple, sin persistencia).
+     * Rota el refresh token por uno nuevo. El anterior deja de servir, y si la sesión
+     * fue cerrada (logout) el refresh token se rechaza.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse refrescar(String refreshToken) {
         TokenInfo info = jwtSupport.parseRefreshToken(refreshToken);
 
@@ -106,7 +138,34 @@ public class AuthenticationService {
             throw new InvalidTokenException("Usuario desactivado");
         }
 
-        return emitirTokens(usuario.getCorreo());
+        AuthResponse respuesta = emitirTokens(usuario);
+        sesionService.rotar(refreshToken, respuesta.refreshToken());
+        return respuesta;
+    }
+
+    /**
+     * Cierre de sesión (HU3): invalida el refresh token de esta sesión, o el de todas.
+     * El access token deja de servir cuando vence (vigencia corta).
+     */
+    @Transactional
+    public void logout(TokenInfo principal, LogoutRequest request) {
+        Long usuarioId = buscarPorCorreo(principal.correo()).getId();
+
+        if (request != null && request.cerrarTodas()) {
+            sesionService.cerrarTodas(usuarioId);
+            return;
+        }
+        if (request == null || request.refreshToken() == null || request.refreshToken().isBlank()) {
+            throw new BadRequestException("Envíe el refreshToken de la sesión o todas=true");
+        }
+        sesionService.cerrar(usuarioId, request.refreshToken());
+    }
+
+    public FortalezaPasswordResponse evaluarPassword(String password) {
+        int puntaje = PoliticaPassword.puntaje(password);
+        var faltantes = PoliticaPassword.requisitosFaltantes(password);
+        return new FortalezaPasswordResponse(puntaje, PoliticaPassword.nivel(puntaje),
+                faltantes.isEmpty(), faltantes);
     }
 
     @Transactional(readOnly = true)
@@ -131,13 +190,13 @@ public class AuthenticationService {
                 throw new BadRequestException("La contraseña actual no es correcta");
             }
             usuario.setPassword(passwordEncoder.encode(request.passwordNuevo()));
+            sesionService.cerrarTodas(usuario.getId());
         }
 
         return UsuarioResponse.from(usuarioRepository.save(usuario));
     }
 
-    private AuthResponse emitirTokens(String correo) {
-        Usuario usuario = buscarPorCorreo(correo);
+    private AuthResponse emitirTokens(Usuario usuario) {
         String rol = (usuario.getRol() == null) ? "" : usuario.getRol().getNombre();
 
         String accessToken = jwtSupport.generateAccessToken(usuario.getCorreo(), usuario.getId(), rol);

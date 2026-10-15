@@ -1,5 +1,6 @@
 package edusecurity.auth.dto;
 
+import edusecurity.auth.validation.PasswordSegura;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -12,6 +13,6 @@ public record MiCuentaRequest(
 
         String passwordActual,
 
-        @Size(min = 6, max = 72)
+        @PasswordSegura
         String passwordNuevo) {
 }
