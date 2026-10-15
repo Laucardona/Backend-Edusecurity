@@ -2,10 +2,13 @@ package edusecurity.simulacion.controller;
 
 import edusecurity.common.security.TokenInfo;
 import edusecurity.common.web.PageResponse;
+import edusecurity.simulacion.dto.AccionRequest;
+import edusecurity.simulacion.dto.AccionResponse;
 import edusecurity.simulacion.dto.EscenarioDetalle;
 import edusecurity.simulacion.dto.EscenarioRequest;
 import edusecurity.simulacion.dto.EscenarioResumen;
 import edusecurity.simulacion.dto.IndicadorCatalogo;
+import edusecurity.simulacion.dto.PasoResponse;
 import edusecurity.simulacion.dto.PublicacionRequest;
 import edusecurity.simulacion.dto.RespuestaRequest;
 import edusecurity.simulacion.dto.RespuestaResponse;
@@ -39,7 +42,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/simulaciones")
-@Tag(name = "Simulaciones de phishing", description = "Laboratorios con bandeja simulada, tiempo límite y retroalimentación (HU43)")
+@Tag(name = "Simulaciones", description = "Laboratorios de phishing con bandeja simulada (HU43) y laboratorios "
+        + "guiados por pasos (HU44), con tiempo límite y retroalimentación")
 public class SimulacionController {
 
     private final EscenarioService escenarioService;
@@ -113,12 +117,30 @@ public class SimulacionController {
     }
 
     @PutMapping("/sesiones/{sesionUuid}/respuestas/{mensajeId}")
-    @Operation(summary = "Responder un mensaje",
-            description = "Clasificación (PHISHING o LEGITIMO), acción y señales encontradas. Se puede cambiar hasta finalizar.")
+    @Operation(summary = "Responder un mensaje (solo phishing)",
+            description = "Clasificación (PHISHING o LEGITIMO), acción y señales encontradas. Se puede cambiar hasta finalizar. "
+                    + "En un laboratorio guiado devuelve 400.")
     public RespuestaResponse responder(@PathVariable String sesionUuid, @PathVariable Long mensajeId,
                                        @Valid @RequestBody RespuestaRequest request,
                                        @AuthenticationPrincipal TokenInfo principal) {
         return sesionService.responder(sesionUuid, mensajeId, request, principal);
+    }
+
+    @GetMapping("/sesiones/{sesionUuid}/paso")
+    @Operation(summary = "Paso actual de un laboratorio guiado",
+            description = "Situación, recurso simulado y opciones, sin puntos, respuesta correcta ni a dónde lleva cada opción.")
+    public PasoResponse pasoActual(@PathVariable String sesionUuid, @AuthenticationPrincipal TokenInfo principal) {
+        return sesionService.pasoActual(sesionUuid, principal);
+    }
+
+    @PostMapping("/sesiones/{sesionUuid}/acciones")
+    @Operation(summary = "Elegir una opción en el paso actual de un laboratorio guiado",
+            description = "Cada paso se responde una vez. Devuelve la retroalimentación y el siguiente paso, "
+                    + "o finalizada=true si el laboratorio terminó. 409 si el paso no es el actual; "
+                    + "400 si la opción no pertenece al paso.")
+    public AccionResponse registrarAccion(@PathVariable String sesionUuid, @Valid @RequestBody AccionRequest request,
+                                          @AuthenticationPrincipal TokenInfo principal) {
+        return sesionService.registrarAccion(sesionUuid, request, principal);
     }
 
     @PostMapping("/sesiones/{sesionUuid}/finalizar")

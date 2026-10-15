@@ -4,7 +4,10 @@ import edusecurity.simulacion.entity.EstadoSesion;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Estado de una sesión en curso, con la bandeja y el tiempo restante calculado por el servidor. */
+/**
+ * Estado de una sesión en curso con el tiempo restante calculado por el servidor. En phishing trae
+ * la bandeja; en un laboratorio guiado, el paso actual (null cuando la sesión terminó).
+ */
 public record SesionResponse(
         String uuid,
         EstadoSesion estado,
@@ -14,5 +17,7 @@ public record SesionResponse(
         int mensajesRespondidos,
         int totalMensajes,
         EscenarioDetalle escenario,
-        List<MensajeBandeja> bandeja) {
+        List<MensajeBandeja> bandeja,
+        int pasosRespondidos,
+        PasoResponse pasoActual) {
 }
