@@ -148,22 +148,14 @@ spring:
               filters:
                 - RewritePath=/openapi/simulacion/v3/api-docs,/v3/api-docs
 
-          # ------------------------- CORS global -------------------------
-          globalcors:
-            add-to-simple-url-handler-mapping: true
-            cors-configurations:
-              '[/**]':
-                allowedOriginPatterns: "*"
-                allowedMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
-                allowedHeaders: "*"
-                allowCredentials: true
-                maxAge: 3600
-
 # JWT validado en el filtro global (misma clave que auth-service)
 app:
   jwt:
     secret: ${JWT_SECRET}
   gateway:
+    # CORS (solo aquí; los servicios no aplican CORS). Orígenes explícitos separados por comas,
+    # con credenciales: nunca "*".
+    cors-origenes: ${CORS_ORIGENES:http://localhost:5500,http://localhost:3000}
     # Rutas que no exigen token (lista separada por comas)
     public-paths: "/api/auth/register,/api/auth/login,/api/auth/refresh,/api/auth/password/**,/swagger-ui/**,/swagger-ui.html,/v3/api-docs/**,/openapi/**,/actuator/health,/error,/fallback/**"
 

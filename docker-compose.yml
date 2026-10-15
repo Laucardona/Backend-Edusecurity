@@ -225,6 +225,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:5500,http://localhost:3000}
     ports:
       - "8080:8080"
     healthcheck:

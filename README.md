@@ -54,7 +54,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 ## Características completas
 
 - **Accesos (M01)**: política de contraseñas (10+ caracteres con mayúscula, minúscula, número y especial), bloqueo temporal tras 5 intentos fallidos, sesiones persistidas con cierre de sesión e historial, y recuperación de contraseña por correo con token de un solo uso.
-- **Seguridad**: JWT validado en el Gateway *y* en cada servicio (defensa en profundidad), RBAC con `@PreAuthorize` (`ADMIN`, `ESTUDIANTE`), registro público siempre `ESTUDIANTE` (sin escalada de privilegios), BCrypt, refresh token con rotación, cabecera `X-Service-Key` para llamadas servicio a servicio.
+- **Seguridad**: JWT validado en el Gateway *y* en cada servicio (defensa en profundidad), RBAC con `@PreAuthorize` (`ADMIN`, `ESTUDIANTE`), registro público siempre `ESTUDIANTE` (sin escalada de privilegios), BCrypt, refresh token con rotación, cabecera `X-Service-Key` para llamadas servicio a servicio. En el borde, el gateway es el único que aplica CORS (orígenes explícitos de `CORS_ORIGENES`), quita `X-Service-Key` y `X-User-*` que lleguen de clientes externos y responde 404 a cualquier ruta `/internal/**`.
 - **Errores estandarizados (RFC 9457)**: todos los servicios y el gateway responden los errores como `application/problem+json` con `type` (`urn:edusecurity:problema:<tipo>`), `title`, `status`, `detail`, `instance`, `correlationId`, `timestamp` y, en validaciones, `errores` (campo → mensaje). Los códigos HTTP no cambian (400/401/403/404/409/423/503/500) y un 500 nunca expone el mensaje de la excepción. Ejemplo:
 
   ```json
@@ -216,6 +216,7 @@ Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/open
 | `ACCESO_VIGENCIA_RECUPERACION` | `30m` | Vigencia del enlace de recuperación de contraseña |
 | `ACCESO_URL_RESTABLECER` | `http://localhost:5500/restablecer.html` | Página del frontend que recibe `?token=` |
 | `ADMIN_CORREO` / `ADMIN_PASSWORD` | `admin@edusecurity.com` / vacío | Administrador inicial. Sin `ADMIN_PASSWORD` no se crea |
+| `CORS_ORIGENES` | `http://localhost:5500,http://localhost:3000` | Orígenes del frontend que el gateway acepta por CORS (con credenciales; `*` no se permite y el gateway no arranca) |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_FROM` | vacío / `587` | SMTP para los correos. Sin `MAIL_HOST` no se envía ningún correo |
 
 Los secretos no están en el repositorio. Para Docker, copia `.env.example` a `.env` (ignorado por Git) y genera valores propios:

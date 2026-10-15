@@ -1,7 +1,6 @@
 package edusecurity.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,12 +18,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Configuración de seguridad estándar (stateless + JWT + CORS) reutilizable por
+ * Configuración de seguridad estándar (stateless + JWT, sin CORS) reutilizable por
  * todos los microservicios servlet. Se activa con {@code app.security.enabled=true}
  * y las rutas públicas se declaran en {@code app.security.permit-all}.
  *
@@ -72,11 +68,11 @@ public class SecurityAutoConfiguration {
             HttpSecurity http,
             ApiAuthenticationFilter filter,
             ApiSecurityProperties properties,
-            JwtAuthenticationEntryPoint entryPoint,
-            @Qualifier("corsConfigurationSource") CorsConfigurationSource corsConfigurationSource) throws Exception {
+            JwtAuthenticationEntryPoint entryPoint) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                // CORS solo en el gateway (0.7): los servicios no son accesibles desde el navegador
+                .cors(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> {
@@ -88,26 +84,6 @@ public class SecurityAutoConfiguration {
                 .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
-    }
-
-    /**
-     * Se condiciona por <b>nombre</b> y no por tipo: MVC registra
-     * {@code mvcHandlerMappingIntrospector}, que también implementa
-     * {@code CorsConfigurationSource} y anularía esta condición.
-     */
-    @Bean(name = "corsConfigurationSource")
-    @ConditionalOnMissingBean(name = "corsConfigurationSource")
-    public CorsConfigurationSource corsConfigurationSource(ApiSecurityProperties properties) {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(properties.getAllowedOriginPatterns());
-        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(java.util.List.of("*"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
     }
 
     @Bean
