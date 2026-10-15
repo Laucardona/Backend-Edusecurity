@@ -251,6 +251,10 @@ Para ejecutar un servicio desde VS Code o IntelliJ, define `JWT_SECRET` e `INTER
 - `progreso-service`: upsert, autorización y cálculo de resúmenes (Mockito).
 - `edusecurity-common` y `api-gateway`: emisión/validación de JWT.
 
+## Contribuir
+
+Lee [CONTRIBUTING.md](CONTRIBUTING.md): flujo de ramas `feature/* → develop → main`, Conventional Commits, PR con la CI en verde y la aprobación de otro integrante, y nunca subir secretos.
+
 ## Autores
 
 Proyecto desarrollado por:
