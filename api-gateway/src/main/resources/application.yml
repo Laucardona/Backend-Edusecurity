@@ -226,8 +226,9 @@ management:
       access: unrestricted
 
 server.error:
-  include-message: always
+  include-message: never
   include-stacktrace: never
+  include-binding-errors: never
 
 logging.level:
   org.springframework.cloud.gateway: INFO

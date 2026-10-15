@@ -134,9 +134,10 @@ Requisitos locales: PostgreSQL 16 ejecutándose, con las bases `edusecurity_auth
 
 ### Credenciales iniciales
 
-| Correo | Contraseña | Rol |
-|---|---|---|
-| `admin@edusecurity.com` | `Admin123*` | ADMIN |
+No hay contraseña de administrador por defecto. El administrador inicial se crea al arrancar
+auth-service solo si defines `ADMIN_PASSWORD` (y opcionalmente `ADMIN_CORREO`, por defecto
+`admin@edusecurity.com`). Sin `ADMIN_PASSWORD` no se crea y queda una advertencia en el log;
+la contraseña nunca se escribe en los logs. Cámbiala después del primer ingreso.
 
 El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 
@@ -207,6 +208,7 @@ Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/open
 | `ACCESO_MAX_INTENTOS` / `ACCESO_DURACION_BLOQUEO` | `5` / `15m` | Intentos fallidos que bloquean la cuenta y por cuánto tiempo |
 | `ACCESO_VIGENCIA_RECUPERACION` | `30m` | Vigencia del enlace de recuperación de contraseña |
 | `ACCESO_URL_RESTABLECER` | `http://localhost:5500/restablecer.html` | Página del frontend que recibe `?token=` |
+| `ADMIN_CORREO` / `ADMIN_PASSWORD` | `admin@edusecurity.com` / vacío | Administrador inicial. Sin `ADMIN_PASSWORD` no se crea |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_FROM` | vacío / `587` | SMTP para los correos. Sin `MAIL_HOST` no se envía ningún correo |
 
 Los secretos no están en el repositorio. Para Docker, copia `.env.example` a `.env` (ignorado por Git) y genera valores propios:

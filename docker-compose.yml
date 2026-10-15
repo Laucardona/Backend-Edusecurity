@@ -95,6 +95,9 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       ACCESO_URL_RESTABLECER: ${ACCESO_URL_RESTABLECER:-http://localhost:5500/restablecer.html}
+      # Administrador inicial: sin ADMIN_PASSWORD no se crea
+      ADMIN_CORREO: ${ADMIN_CORREO:-admin@edusecurity.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     # No se publica: solo accesible a través del gateway
     expose:
       - "8081"
