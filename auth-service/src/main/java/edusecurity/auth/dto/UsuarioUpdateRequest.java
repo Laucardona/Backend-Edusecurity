@@ -1,5 +1,6 @@
 package edusecurity.auth.dto;
 
+import edusecurity.auth.validation.PasswordSegura;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Size;
 
@@ -13,7 +14,7 @@ public record UsuarioUpdateRequest(
         @Email(message = "el correo no es válido")
         String correo,
 
-        @Size(min = 6, max = 72)
+        @PasswordSegura
         String password,
 
         Long rolId) {

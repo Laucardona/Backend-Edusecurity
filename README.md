@@ -52,6 +52,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 
 ## Características completas
 
+- **Accesos (M01)**: política de contraseñas (10+ caracteres con mayúscula, minúscula, número y especial), bloqueo temporal tras 5 intentos fallidos, sesiones persistidas con cierre de sesión e historial, y recuperación de contraseña por correo con token de un solo uso.
 - **Seguridad**: JWT validado en el Gateway *y* en cada servicio (defensa en profundidad), RBAC con `@PreAuthorize` (`ADMIN`, `ESTUDIANTE`), registro público siempre `ESTUDIANTE` (sin escalada de privilegios), BCrypt, refresh token con rotación, cabecera `X-Service-Key` para llamadas servicio a servicio.
 - **Errores estandarizados**: `GlobalExceptionHandler` con formato `{timestamp, status, error, message, path, fieldErrors}` en todos los servicios (404/400/403/401/409/503/500).
 - **Validaciones**: `jakarta.validation` en todos los DTOs con detalle por campo.
@@ -143,7 +144,12 @@ El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 |---|---|---|---|
 | POST | `/api/auth/register` | Público | Registro de estudiante |
 | POST | `/api/auth/login` | Público | Devuelve `accessToken` + `refreshToken` |
-| POST | `/api/auth/refresh` | Público | Rota el refresh token |
+| POST | `/api/auth/refresh` | Público | Rota el refresh token (cada refresh token sirve una sola vez) |
+| POST | `/api/auth/logout` | Autenticado | Cierra la sesión del `refreshToken` enviado, o todas con `{"todas":true}` |
+| GET | `/api/auth/sesiones` | Autenticado | Historial de mis inicios de sesión (fecha, IP, dispositivo) |
+| POST | `/api/auth/password/recuperar` | Público | Envía un enlace de recuperación al correo (responde 202 siempre) |
+| POST | `/api/auth/password/restablecer` | Público | Cambia la contraseña con el token del correo y cierra todas las sesiones |
+| POST | `/api/auth/password/fortaleza` | Público | Indicador de fortaleza: puntaje 0 a 4, nivel y requisitos faltantes |
 | GET/PUT | `/api/auth/me` | Autenticado | Ver / actualizar mi perfil |
 | GET/POST/PUT/DELETE | `/api/usuarios` | ADMIN | CRUD de usuarios, paginado con `q` |
 | GET/POST | `/api/roles` | ADMIN | Roles del sistema |
@@ -167,6 +173,11 @@ Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/open
 | `JWT_SECRET` | **obligatoria, sin valor por defecto** | Clave Base64 de al menos 32 bytes para firmar tokens |
 | `INTERNAL_API_KEY` | **obligatoria, sin valor por defecto** | Cabecera `X-Service-Key` servicio a servicio |
 | `MYSQL_ROOT_PASSWORD` | **obligatoria en Docker** | Contraseña root del contenedor MySQL |
+| `JWT_ACCESS_EXPIRATION` | `15m` | Vigencia del access token (corta para que el cierre de sesión sea efectivo) |
+| `ACCESO_MAX_INTENTOS` / `ACCESO_DURACION_BLOQUEO` | `5` / `15m` | Intentos fallidos que bloquean la cuenta y por cuánto tiempo |
+| `ACCESO_VIGENCIA_RECUPERACION` | `30m` | Vigencia del enlace de recuperación de contraseña |
+| `ACCESO_URL_RESTABLECER` | `http://localhost:5500/restablecer.html` | Página del frontend que recibe `?token=` |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_FROM` | vacío / `587` | SMTP para los correos. Sin `MAIL_HOST` no se envía ningún correo |
 
 Los secretos no están en el repositorio. Para Docker, copia `.env.example` a `.env` (ignorado por Git) y genera valores propios:
 

@@ -1,5 +1,6 @@
 package edusecurity.auth.dto;
 
+import edusecurity.auth.validation.PasswordSegura;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,7 +18,7 @@ public record UsuarioRequest(
         String correo,
 
         @NotBlank(message = "la contraseña es obligatoria")
-        @Size(min = 6, max = 72)
+        @PasswordSegura
         String password,
 
         Long rolId) {

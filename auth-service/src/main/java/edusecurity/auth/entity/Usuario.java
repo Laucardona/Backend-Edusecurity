@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 
 @Entity
 @Table(name = "usuarios")
@@ -30,6 +31,13 @@ public class Usuario {
 
     @Column(nullable = false)
     private Boolean activo = true;
+
+    @Column(name = "intentos_fallidos", nullable = false)
+    private int intentosFallidos = 0;
+
+    /** Si es posterior a ahora, la cuenta está bloqueada temporalmente (HU38). */
+    @Column(name = "bloqueado_hasta")
+    private Instant bloqueadoHasta;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = true)
     @JoinColumn(name = "rol_id")
@@ -84,5 +92,25 @@ public class Usuario {
 
     public void setRol(Rol rol) {
         this.rol = rol;
+    }
+
+    public int getIntentosFallidos() {
+        return intentosFallidos;
+    }
+
+    public void setIntentosFallidos(int intentosFallidos) {
+        this.intentosFallidos = intentosFallidos;
+    }
+
+    public Instant getBloqueadoHasta() {
+        return bloqueadoHasta;
+    }
+
+    public void setBloqueadoHasta(Instant bloqueadoHasta) {
+        this.bloqueadoHasta = bloqueadoHasta;
+    }
+
+    public boolean estaBloqueado(Instant ahora) {
+        return bloqueadoHasta != null && bloqueadoHasta.isAfter(ahora);
     }
 }

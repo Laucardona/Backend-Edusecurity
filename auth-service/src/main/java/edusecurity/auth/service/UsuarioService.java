@@ -106,6 +106,11 @@ public class UsuarioService {
         }
 
         usuario.setActivo(request.activo());
+        if (Boolean.TRUE.equals(request.activo())) {
+            // Activar también levanta un bloqueo temporal por intentos fallidos (HU38).
+            usuario.setIntentosFallidos(0);
+            usuario.setBloqueadoHasta(null);
+        }
         return UsuarioResponse.from(usuarioRepository.save(usuario));
     }
 

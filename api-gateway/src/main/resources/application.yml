@@ -118,7 +118,7 @@ app:
     secret: ${JWT_SECRET}
   gateway:
     # Rutas que no exigen token (lista separada por comas)
-    public-paths: "/api/auth/register,/api/auth/login,/api/auth/refresh,/swagger-ui/**,/swagger-ui.html,/v3/api-docs/**,/openapi/**,/actuator/health,/error,/fallback/**"
+    public-paths: "/api/auth/register,/api/auth/login,/api/auth/refresh,/api/auth/password/**,/swagger-ui/**,/swagger-ui.html,/v3/api-docs/**,/openapi/**,/actuator/health,/error,/fallback/**"
 
 # ------------------------- Circuit Breaker -------------------------
 resilience4j:

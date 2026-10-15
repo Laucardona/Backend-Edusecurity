@@ -86,6 +86,12 @@ services:
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en .env}
+      # Recuperación de contraseña: sin MAIL_HOST no se envían correos
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      ACCESO_URL_RESTABLECER: ${ACCESO_URL_RESTABLECER:-http://localhost:5500/restablecer.html}
     # No se publica: solo accesible a través del gateway
     expose:
       - "8081"
