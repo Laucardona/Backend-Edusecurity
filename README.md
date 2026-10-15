@@ -37,6 +37,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 | `auth-service` | 8081 | Registro, login, refresh token, usuarios y roles (emisor de JWT) | `edusecurity_auth` |
 | `contenido-service` | 8082 | Módulos educativos y lecciones (CRUD) | `edusecurity_contenido` |
 | `progreso-service` | 8083 | Progreso por lección, resúmenes y estadísticas (consulta vía Feign) | `edusecurity_progreso` |
+| `simulacion-service` | 8084 | Laboratorios de phishing con bandeja simulada, tiempo límite y retroalimentación (HU43) | `edusecurity_simulacion` |
 | `eureka-server` | 8761 | Descubrimiento de servicios | — |
 | `config-server` | 8888 | Configuración centralizada compartida | — |
 | `edusecurity-common` | — | Librería compartida: seguridad JWT, manejo de errores, paginación, OpenAPI | — |
@@ -77,6 +78,7 @@ Backend-Edusecurity/
 ├── auth-service/               # Auth + usuarios + roles
 ├── contenido-service/          # Módulos + lecciones
 ├── progreso-service/           # Progreso + estadísticas (Feign clients)
+├── simulacion-service/         # Laboratorios de phishing (HU43)
 ├── api-gateway/                # Gateway WebFlux
 └── .github/workflows/ci.yml    # CI
 ```
@@ -124,7 +126,7 @@ Orden de arranque (cada uno en una terminal):
 ```bash
 ./mvnw -pl config-server spring-boot:run
 ./mvnw -pl eureka-server spring-boot:run
-./mvnw -pl auth-service,contenido-service,progreso-service spring-boot:run
+./mvnw -pl auth-service,contenido-service,progreso-service,simulacion-service spring-boot:run
 ./mvnw -pl api-gateway spring-boot:run
 ```
 
@@ -159,8 +161,13 @@ El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 | GET | `/api/progreso/mio` | Autenticado | Mi progreso paginado |
 | GET | `/api/progreso/resumen/mio` | Autenticado | Mi avance por módulo |
 | GET | `/api/progreso/resumen/global` | ADMIN | Estadísticas globales |
+| GET | `/api/simulaciones`, `/api/simulaciones/{uuid}`, `/api/simulaciones/indicadores` | Autenticado | Catálogo de laboratorios de phishing y señales de alerta |
+| POST | `/api/simulaciones/{uuid}/sesiones` | Autenticado | Iniciar un laboratorio (bandeja + tiempo límite) |
+| PUT | `/api/simulaciones/sesiones/{sesion}/respuestas/{mensajeId}` | Dueño | Clasificar un mensaje, elegir acción y marcar señales |
+| POST | `/api/simulaciones/sesiones/{sesion}/finalizar` | Dueño | Terminar y recibir la retroalimentación |
+| POST/PATCH | `/api/simulaciones`, `/api/simulaciones/{uuid}/publicacion` | ADMIN | Crear y publicar escenarios |
 
-Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/openapi/contenido/v3/api-docs`, `/openapi/progreso/v3/api-docs`.
+Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/openapi/contenido/v3/api-docs`, `/openapi/progreso/v3/api-docs`, `/openapi/simulacion/v3/api-docs`.
 
 ## Variables de entorno
 

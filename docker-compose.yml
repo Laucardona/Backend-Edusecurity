@@ -167,6 +167,36 @@ services:
       start_period: 60s
     networks: [edusecurity]
 
+  # ----------------------------------------------------- Simulación Service
+  simulacion-service:
+    build:
+      context: ./simulacion-service
+    container_name: edusecurity-simulacion-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/edusecurity_simulacion?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USERNAME: edusecurity
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      CONFIG_SERVER_URL: http://config-server:8888
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en .env}
+    expose:
+      - "8084"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8084/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [edusecurity]
+
   # ----------------------------------------------------------- API Gateway
   api-gateway:
     build:
@@ -182,6 +212,8 @@ services:
       contenido-service:
         condition: service_healthy
       progreso-service:
+        condition: service_healthy
+      simulacion-service:
         condition: service_healthy
     environment:
       EUREKA_URL: http://eureka-server:8761/eureka/

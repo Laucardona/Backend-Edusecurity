@@ -1,0 +1,88 @@
+-- Simulaciones de phishing (HU43): escenarios con una bandeja de mensajes simulados,
+-- señales de alerta por mensaje y sesiones con tiempo límite por estudiante.
+-- Compatible con MySQL 8 y H2 en modo MySQL.
+
+CREATE TABLE escenarios (
+    id                   BIGINT        NOT NULL AUTO_INCREMENT,
+    uuid                 VARCHAR(36)   NOT NULL,
+    tipo                 VARCHAR(30)   NOT NULL,
+    titulo               VARCHAR(150)  NOT NULL,
+    descripcion          VARCHAR(1000),
+    contexto             TEXT          NOT NULL,
+    nivel                VARCHAR(20)   NOT NULL,
+    duracion_segundos    INT           NOT NULL,
+    publicado            BOOLEAN       NOT NULL DEFAULT FALSE,
+    fecha_creacion       TIMESTAMP     NOT NULL,
+    fecha_actualizacion  TIMESTAMP     NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_escenarios_uuid UNIQUE (uuid)
+);
+
+-- Mensajes de la bandeja. Los dominios y enlaces son ficticios y se muestran como texto:
+-- la plataforma nunca envía correos reales ni abre los enlaces (ADR-013).
+CREATE TABLE mensajes_simulados (
+    id                   BIGINT        NOT NULL AUTO_INCREMENT,
+    escenario_id         BIGINT        NOT NULL,
+    orden                INT           NOT NULL,
+    canal                VARCHAR(20)   NOT NULL,
+    remitente_nombre     VARCHAR(150)  NOT NULL,
+    remitente_direccion  VARCHAR(200)  NOT NULL,
+    asunto               VARCHAR(200),
+    cuerpo               TEXT          NOT NULL,
+    enlace_mostrado      VARCHAR(300),
+    enlace_real          VARCHAR(300),
+    adjunto_nombre       VARCHAR(150),
+    recibido_en          VARCHAR(50),
+    es_phishing          BOOLEAN       NOT NULL,
+    accion_correcta      VARCHAR(30)   NOT NULL,
+    explicacion          TEXT          NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_mensajes_escenario FOREIGN KEY (escenario_id) REFERENCES escenarios (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_mensajes_escenario ON mensajes_simulados (escenario_id, orden);
+
+-- Señales de alerta reales de cada mensaje, con el fragmento del texto que las delata.
+CREATE TABLE indicadores (
+    id                   BIGINT        NOT NULL AUTO_INCREMENT,
+    mensaje_id           BIGINT        NOT NULL,
+    tipo                 VARCHAR(40)   NOT NULL,
+    descripcion          VARCHAR(500)  NOT NULL,
+    fragmento            VARCHAR(300),
+    PRIMARY KEY (id),
+    CONSTRAINT uk_indicadores_mensaje_tipo UNIQUE (mensaje_id, tipo),
+    CONSTRAINT fk_indicadores_mensaje FOREIGN KEY (mensaje_id) REFERENCES mensajes_simulados (id) ON DELETE CASCADE
+);
+
+-- usuario_id viene de auth-service (sin FK entre servicios).
+CREATE TABLE sesiones_simulacion (
+    id                   BIGINT        NOT NULL AUTO_INCREMENT,
+    uuid                 VARCHAR(36)   NOT NULL,
+    escenario_id         BIGINT        NOT NULL,
+    usuario_id           BIGINT        NOT NULL,
+    estado               VARCHAR(20)   NOT NULL,
+    iniciada_en          TIMESTAMP     NOT NULL,
+    vence_en             TIMESTAMP     NOT NULL,
+    finalizada_en        TIMESTAMP     NULL,
+    puntaje              INT           NULL,
+    puntaje_maximo       INT           NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_sesiones_uuid UNIQUE (uuid),
+    CONSTRAINT fk_sesiones_escenario FOREIGN KEY (escenario_id) REFERENCES escenarios (id)
+);
+
+CREATE INDEX idx_sesiones_usuario ON sesiones_simulacion (usuario_id, iniciada_en);
+
+CREATE TABLE respuestas_mensaje (
+    id                   BIGINT        NOT NULL AUTO_INCREMENT,
+    sesion_id            BIGINT        NOT NULL,
+    mensaje_id           BIGINT        NOT NULL,
+    clasificacion        VARCHAR(20)   NOT NULL,
+    accion               VARCHAR(30)   NOT NULL,
+    indicadores_marcados VARCHAR(600),
+    respondida_en        TIMESTAMP     NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT uk_respuestas_sesion_mensaje UNIQUE (sesion_id, mensaje_id),
+    CONSTRAINT fk_respuestas_sesion FOREIGN KEY (sesion_id) REFERENCES sesiones_simulacion (id) ON DELETE CASCADE,
+    CONSTRAINT fk_respuestas_mensaje FOREIGN KEY (mensaje_id) REFERENCES mensajes_simulados (id)
+);

@@ -31,6 +31,11 @@ public class CircuitBreakerFallbackController {
         return responder("progreso-service");
     }
 
+    @RequestMapping("/fallback/simulacion")
+    public Mono<ResponseEntity<Map<String, Object>>> simulacion() {
+        return responder("simulacion-service");
+    }
+
     private Mono<ResponseEntity<Map<String, Object>>> responder(String servicio) {
         Map<String, Object> body = Map.of(
                 "timestamp", Instant.now().toString(),
