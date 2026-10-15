@@ -118,7 +118,8 @@ class ContenidoIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"descripcion\":\"sin titulo\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("titulo"));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errores.titulo").exists());
     }
 
     @Test

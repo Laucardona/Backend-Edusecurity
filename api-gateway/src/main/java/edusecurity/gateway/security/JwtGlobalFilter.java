@@ -1,21 +1,15 @@
 package edusecurity.gateway.security;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.LinkedHashMap;
+import edusecurity.gateway.web.ProblemaGateway;
 import java.util.List;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -25,7 +19,7 @@ import reactor.core.publisher.Mono;
  * <ul>
  *   <li>Permite las rutas públicas (login, registro, swagger, salud, docs).</li>
  *   <li>Exige un access token JWT válido para todo lo demás.</li>
- *   <li>Devuelve errores JSON con el mismo formato que los microservicios.</li>
+ *   <li>Devuelve los errores en formato RFC 9457, igual que los microservicios.</li>
  * </ul>
  */
 @Component
@@ -83,28 +77,8 @@ public class JwtGlobalFilter implements GlobalFilter, Ordered {
     }
 
     private Mono<Void> rechazar(ServerWebExchange exchange, String mensaje) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.UNAUTHORIZED);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        response.getHeaders().set(HttpHeaders.CACHE_CONTROL, "no-store");
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", Instant.now().toString());
-        body.put("status", 401);
-        body.put("error", "Unauthorized");
-        body.put("message", mensaje);
-        body.put("path", exchange.getRequest().getPath().value());
-        body.put("fieldErrors", List.of());
-
-        byte[] bytes;
-        try {
-            bytes = objectMapper.writeValueAsBytes(body);
-        } catch (JsonProcessingException ex) {
-            bytes = "{\"status\":401,\"message\":\"No autorizado\"}"
-                    .getBytes(StandardCharsets.UTF_8);
-        }
-
-        return response.writeWith(Mono.just(response.bufferFactory().wrap(bytes)));
+        return ProblemaGateway.escribir(exchange, objectMapper, HttpStatus.UNAUTHORIZED,
+                "no-autenticado", "No autenticado", mensaje);
     }
 
     @Override

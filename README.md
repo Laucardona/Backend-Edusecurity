@@ -55,7 +55,14 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 
 - **Accesos (M01)**: política de contraseñas (10+ caracteres con mayúscula, minúscula, número y especial), bloqueo temporal tras 5 intentos fallidos, sesiones persistidas con cierre de sesión e historial, y recuperación de contraseña por correo con token de un solo uso.
 - **Seguridad**: JWT validado en el Gateway *y* en cada servicio (defensa en profundidad), RBAC con `@PreAuthorize` (`ADMIN`, `ESTUDIANTE`), registro público siempre `ESTUDIANTE` (sin escalada de privilegios), BCrypt, refresh token con rotación, cabecera `X-Service-Key` para llamadas servicio a servicio.
-- **Errores estandarizados**: `GlobalExceptionHandler` con formato `{timestamp, status, error, message, path, fieldErrors}` en todos los servicios (404/400/403/401/409/503/500).
+- **Errores estandarizados (RFC 9457)**: todos los servicios y el gateway responden los errores como `application/problem+json` con `type` (`urn:edusecurity:problema:<tipo>`), `title`, `status`, `detail`, `instance`, `correlationId`, `timestamp` y, en validaciones, `errores` (campo → mensaje). Los códigos HTTP no cambian (400/401/403/404/409/423/503/500) y un 500 nunca expone el mensaje de la excepción. Ejemplo:
+
+  ```json
+  {"type":"urn:edusecurity:problema:no-encontrado","title":"Recurso no encontrado","status":404,
+   "detail":"Módulo no encontrado con id 9","instance":"/api/modulos/9",
+   "correlationId":"3f2b...","timestamp":"2026-10-15T21:40:00Z"}
+  ```
+- **Id de correlación**: cada petición lleva `X-Correlation-Id`. El gateway lo genera si no llega (o si no es un UUID ni un token seguro de hasta 64 caracteres), lo reenvía al servicio y lo devuelve en la respuesta. Cada servicio lo pone en el MDC (aparece en cada línea de log) y Feign lo propaga entre servicios.
 - **Validaciones**: `jakarta.validation` en todos los DTOs con detalle por campo.
 - **Paginación**: `PageResponse<T>` uniforme (`content`, `page`, `size`, `totalElements`, `totalPages`, `first`, `last`) con filtros `q` y ordenamiento.
 - **Resiliencia**: Circuit Breaker (Resilience4j) con fallback 503 + reintentos con backoff para GET en el Gateway; timeouts Feign en `progreso-service` y `simulacion-service`; envío de resultados de simulaciones después del commit con reintento programado (outbox ligero).

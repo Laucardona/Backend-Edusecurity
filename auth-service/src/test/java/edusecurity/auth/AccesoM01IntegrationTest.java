@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -59,7 +60,9 @@ class AccesoM01IntegrationTest {
                                 {"nombre":"Débil","correo":"debil@correo.com","password":"abcdefgh"}
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.fieldErrors[0].field").value("password"));
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.errores.password").exists());
     }
 
     @Test
@@ -95,7 +98,8 @@ class AccesoM01IntegrationTest {
         // Bloqueada: ni con la contraseña correcta entra
         login(correo, PASSWORD)
                 .andExpect(status().isLocked())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("bloqueada")));
+                .andExpect(jsonPath("$.type").value("urn:edusecurity:problema:cuenta-bloqueada"))
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("bloqueada")));
 
         String admin = token(login("admin@edusecurity.com", "Admin123*"), "accessToken");
         mockMvc.perform(patch("/api/usuarios/" + id + "/estado")

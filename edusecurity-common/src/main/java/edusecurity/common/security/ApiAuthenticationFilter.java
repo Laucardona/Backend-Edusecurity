@@ -1,14 +1,12 @@
 package edusecurity.common.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import edusecurity.common.error.ApiError;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
-import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -79,10 +77,6 @@ public class ApiAuthenticationFilter extends OncePerRequestFilter {
 
     private void writeUnauthorized(HttpServletResponse response, HttpServletRequest request,
                                    String mensaje) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding("UTF-8");
-        objectMapper.writeValue(response.getWriter(),
-                ApiError.of(401, "Unauthorized", mensaje, request.getRequestURI()));
+        JwtAuthenticationEntryPoint.escribir401(objectMapper, request, response, mensaje);
     }
 }
