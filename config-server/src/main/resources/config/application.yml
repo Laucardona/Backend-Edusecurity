@@ -1,0 +1,21 @@
+# Configuración compartida por todos los clientes del Config Server.
+# Los servicios la reciben vía spring.config.import=optional:configserver:...
+
+app:
+  jwt:
+    # El secreto NO va aquí: cada servicio lo lee de la variable de entorno JWT_SECRET.
+    access-expiration: 15m
+    refresh-expiration: 7d
+  security:
+    # La clave interna (X-Service-Key) la lee cada servicio de INTERNAL_API_KEY.
+    allowed-origin-patterns:
+      - "*"
+  openapi:
+    version: 1.0.0
+
+logging:
+  level:
+    root: INFO
+    edusecurity: INFO
+    org.springframework.web: INFO
+    org.springframework.security: WARN

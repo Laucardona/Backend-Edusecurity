@@ -1,0 +1,3 @@
+edusecurity.common.web.WebExceptionAutoConfiguration
+edusecurity.common.security.SecurityAutoConfiguration
+edusecurity.common.docs.OpenApiAutoConfiguration

@@ -1,0 +1,206 @@
+# ============================================================================
+# EduSecurity Backend - Arquitectura de microservicios
+#
+# Uso:
+#   0) cp .env.example .env   y reemplaza cada valor (ver instrucciones en el archivo)
+#   1) mvnw clean package -DskipTests
+#   2) docker compose up --build
+#   3) Gateway: http://localhost:8080  |  Swagger: http://localhost:8080/swagger-ui.html
+# ============================================================================
+
+name: edusecurity-backend
+
+services:
+
+  # ------------------------------------------------------------------ MySQL
+  mysql:
+    image: mysql:8.4
+    container_name: edusecurity-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      TZ: America/Bogota
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [edusecurity]
+
+  # -------------------------------------------------------- Config Server
+  config-server:
+    build:
+      context: ./config-server
+    container_name: edusecurity-config-server
+    environment:
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [edusecurity]
+
+  # --------------------------------------------------------- Eureka Server
+  eureka-server:
+    build:
+      context: ./eureka-server
+    container_name: edusecurity-eureka-server
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    networks: [edusecurity]
+
+  # ---------------------------------------------------------- Auth Service
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: edusecurity-auth-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/edusecurity_auth?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USERNAME: edusecurity
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      CONFIG_SERVER_URL: http://config-server:8888
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en .env}
+      # Recuperación de contraseña: sin MAIL_HOST no se envían correos
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      ACCESO_URL_RESTABLECER: ${ACCESO_URL_RESTABLECER:-http://localhost:5500/restablecer.html}
+    # No se publica: solo accesible a través del gateway
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [edusecurity]
+
+  # ------------------------------------------------------ Contenido Service
+  contenido-service:
+    build:
+      context: ./contenido-service
+    container_name: edusecurity-contenido-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/edusecurity_contenido?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USERNAME: edusecurity
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      CONFIG_SERVER_URL: http://config-server:8888
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en .env}
+    expose:
+      - "8082"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [edusecurity]
+
+  # ------------------------------------------------------ Progreso Service
+  progreso-service:
+    build:
+      context: ./progreso-service
+    container_name: edusecurity-progreso-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      contenido-service:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/edusecurity_progreso?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+      DB_USERNAME: edusecurity
+      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      CONFIG_SERVER_URL: http://config-server:8888
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Define INTERNAL_API_KEY en .env}
+    expose:
+      - "8083"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8083/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [edusecurity]
+
+  # ----------------------------------------------------------- API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: edusecurity-api-gateway
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      contenido-service:
+        condition: service_healthy
+      progreso-service:
+        condition: service_healthy
+    environment:
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      CONFIG_SERVER_URL: http://config-server:8888
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks: [edusecurity]
+
+volumes:
+  mysql_data:
+
+# Red interna: los microservicios solo se comunican entre sí y a través del gateway
+networks:
+  edusecurity:
+    driver: bridge

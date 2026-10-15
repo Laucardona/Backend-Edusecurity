@@ -1,0 +1,180 @@
+# ============================================================================
+# API Gateway - punto único de entrada del backend EduSecurity (WebFlux)
+# ============================================================================
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  # Configuración centralizada (Config Server) - opcional
+  config:
+    import: "optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}"
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            response-timeout: 10s
+            connect-timeout: 2000
+
+          # ------------------------- Rutas (descubrimiento vía Eureka) -------------------------
+          routes:
+            - id: auth-ruta
+              uri: lb://edusecurity-auth
+              predicates:
+                - Path=/api/auth/**,/api/usuarios/**,/api/roles/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: authCB
+                    fallbackUri: forward:/fallback/auth
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    backoff:
+                      firstBackoff: 200ms
+                      maxBackoff: 1s
+                      factor: 2
+                      basedOnPreviousValue: false
+
+            - id: contenido-ruta
+              uri: lb://edusecurity-contenido
+              predicates:
+                - Path=/api/modulos/**,/api/lecciones/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: contenidoCB
+                    fallbackUri: forward:/fallback/contenido
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    backoff:
+                      firstBackoff: 200ms
+                      maxBackoff: 1s
+                      factor: 2
+                      basedOnPreviousValue: false
+
+            - id: progreso-ruta
+              uri: lb://edusecurity-progreso
+              predicates:
+                - Path=/api/progreso/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: progresoCB
+                    fallbackUri: forward:/fallback/progreso
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    backoff:
+                      firstBackoff: 200ms
+                      maxBackoff: 1s
+                      factor: 2
+                      basedOnPreviousValue: false
+
+            # Documentación agregada: expone el /v3/api-docs de cada servicio
+            - id: auth-docs
+              uri: lb://edusecurity-auth
+              predicates:
+                - Path=/openapi/auth/v3/api-docs
+              filters:
+                - RewritePath=/openapi/auth/v3/api-docs,/v3/api-docs
+
+            - id: contenido-docs
+              uri: lb://edusecurity-contenido
+              predicates:
+                - Path=/openapi/contenido/v3/api-docs
+              filters:
+                - RewritePath=/openapi/contenido/v3/api-docs,/v3/api-docs
+
+            - id: progreso-docs
+              uri: lb://edusecurity-progreso
+              predicates:
+                - Path=/openapi/progreso/v3/api-docs
+              filters:
+                - RewritePath=/openapi/progreso/v3/api-docs,/v3/api-docs
+
+          # ------------------------- CORS global -------------------------
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowedOriginPatterns: "*"
+                allowedMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+                allowedHeaders: "*"
+                allowCredentials: true
+                maxAge: 3600
+
+# JWT validado en el filtro global (misma clave que auth-service)
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  gateway:
+    # Rutas que no exigen token (lista separada por comas)
+    public-paths: "/api/auth/register,/api/auth/login,/api/auth/refresh,/api/auth/password/**,/swagger-ui/**,/swagger-ui.html,/v3/api-docs/**,/openapi/**,/actuator/health,/error,/fallback/**"
+
+# ------------------------- Circuit Breaker -------------------------
+resilience4j:
+  circuitbreaker:
+    instances:
+      authCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      contenidoCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      progresoCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+
+# ------------------------- Swagger agregado -------------------------
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: Autenticación y usuarios
+        url: /openapi/auth/v3/api-docs
+      - name: Contenido educativo
+        url: /openapi/contenido/v3/api-docs
+      - name: Progreso y estadísticas
+        url: /openapi/progreso/v3/api-docs
+
+# ------------------------- Descubrimiento -------------------------
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+# ------------------------- Actuator / salud -------------------------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    gateway:
+      access: unrestricted
+
+server.error:
+  include-message: always
+  include-stacktrace: never
+
+logging.level:
+  org.springframework.cloud.gateway: INFO
