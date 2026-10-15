@@ -46,6 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,14 +66,17 @@ public class SesionService {
     private final CalificadorSimulacion calificador;
     private final MaquinaLaboratorio maquina;
     private final Clock clock;
+    private final ApplicationEventPublisher eventos;
 
     public SesionService(SesionSimulacionRepository sesionRepository, EscenarioService escenarioService,
-                         CalificadorSimulacion calificador, MaquinaLaboratorio maquina, Clock clock) {
+                         CalificadorSimulacion calificador, MaquinaLaboratorio maquina, Clock clock,
+                         ApplicationEventPublisher eventos) {
         this.sesionRepository = sesionRepository;
         this.escenarioService = escenarioService;
         this.calificador = calificador;
         this.maquina = maquina;
         this.clock = clock;
+        this.eventos = eventos;
     }
 
     /**
@@ -272,6 +276,8 @@ public class SesionService {
         sesionRepository.saveAndFlush(sesion);
         log.info("Sesión de simulación cerrada: sesion={} estado={} puntaje={}/{}",
                 sesion.getUuid(), estadoFinal, puntaje, maximo);
+        // NotificadorProgreso lo envía a progreso-service después del commit (I7.4).
+        eventos.publishEvent(new SesionCerradaEvent(sesion.getId()));
     }
 
     private ResultadoCalificacion calificar(SesionSimulacion sesion) {

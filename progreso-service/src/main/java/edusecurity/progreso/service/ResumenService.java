@@ -7,6 +7,7 @@ import edusecurity.progreso.dto.ResumenModuloResponse;
 import edusecurity.progreso.dto.ResumenUsuarioResponse;
 import edusecurity.progreso.entity.Progreso;
 import edusecurity.progreso.repository.ProgresoRepository;
+import edusecurity.progreso.repository.SimulacionCompletadaRepository;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -27,10 +28,13 @@ public class ResumenService {
 
     private final ProgresoService progresoService;
     private final ProgresoRepository repository;
+    private final SimulacionCompletadaRepository simulacionRepository;
 
-    public ResumenService(ProgresoService progresoService, ProgresoRepository repository) {
+    public ResumenService(ProgresoService progresoService, ProgresoRepository repository,
+                          SimulacionCompletadaRepository simulacionRepository) {
         this.progresoService = progresoService;
         this.repository = repository;
+        this.simulacionRepository = simulacionRepository;
     }
 
     @Transactional(readOnly = true)
@@ -70,7 +74,9 @@ public class ResumenService {
                 completadas,
                 promedio,
                 ultimaActividad,
-                porModulo);
+                porModulo,
+                simulacionRepository.countByUsuarioId(usuarioId),
+                simulacionRepository.countByUsuarioIdAndAprobadoTrue(usuarioId));
     }
 
     @Transactional(readOnly = true)
