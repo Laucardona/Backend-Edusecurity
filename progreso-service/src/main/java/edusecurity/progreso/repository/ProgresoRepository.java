@@ -29,4 +29,22 @@ public interface ProgresoRepository extends JpaRepository<Progreso, Long> {
                           @Param("leccionId") Long leccionId,
                           @Param("moduloId") Long moduloId,
                           Pageable pageable);
+
+    // ------------------------------------------------------------------ panel administrativo (HU33)
+
+    /** Una fila: [promedio de porcentaje, lecciones completadas, estudiantes con progreso]. */
+    @Query("""
+            SELECT AVG(p.porcentaje), SUM(CASE WHEN p.completado = true THEN 1 ELSE 0 END), COUNT(DISTINCT p.usuarioId)
+            FROM Progreso p
+            """)
+    List<Object[]> resumenGeneral();
+
+    /** [moduloId, promedio de porcentaje, lecciones completadas] por módulo. */
+    @Query("""
+            SELECT p.moduloId, AVG(p.porcentaje), SUM(CASE WHEN p.completado = true THEN 1 ELSE 0 END)
+            FROM Progreso p
+            GROUP BY p.moduloId
+            ORDER BY p.moduloId
+            """)
+    List<Object[]> resumenPorModulo();
 }
