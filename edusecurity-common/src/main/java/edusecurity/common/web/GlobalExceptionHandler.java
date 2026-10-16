@@ -1,7 +1,6 @@
 package edusecurity.common.web;
 
-import edusecurity.common.error.ApiError;
-import edusecurity.common.error.FieldErrorDetail;
+import edusecurity.common.error.Problemas;
 import edusecurity.common.exception.AccountLockedException;
 import edusecurity.common.exception.BadRequestException;
 import edusecurity.common.exception.ConflictException;
@@ -11,10 +10,13 @@ import edusecurity.common.exception.ResourceNotFoundException;
 import edusecurity.common.exception.ServiceUnavailableException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -29,114 +31,116 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
- * Manejador global de excepciones: garantiza que todos los servicios respondan
- * con el mismo formato de error (ApiError) en lugar de los HTML/JSON por defecto.
+ * Manejador global de excepciones: todos los servicios responden los errores en formato
+ * RFC 9457 ({@code application/problem+json}, ver {@link Problemas}) en lugar de los HTML/JSON
+ * por defecto. Un 500 nunca expone el mensaje de la excepción.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    private ResponseEntity<ApiError> build(HttpServletRequest request, HttpStatus status, String message) {
-        String path = (request == null) ? null : request.getRequestURI();
-        return ResponseEntity.status(status)
-                .body(ApiError.of(status.value(), status.getReasonPhrase(), message, path));
+    private static ResponseEntity<ProblemDetail> responder(ProblemDetail problema) {
+        return ResponseEntity.status(problema.getStatus())
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(problema);
+    }
+
+    private static ResponseEntity<ProblemDetail> build(HttpServletRequest request, HttpStatus status, String detalle) {
+        return responder(Problemas.crear(status, detalle, request == null ? null : request.getRequestURI()));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ApiError> notFound(ResourceNotFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> notFound(ResourceNotFoundException ex, HttpServletRequest request) {
         return build(request, HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ApiError> badRequest(BadRequestException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> badRequest(BadRequestException ex, HttpServletRequest request) {
         return build(request, HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ApiError> conflict(ConflictException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> conflict(ConflictException ex, HttpServletRequest request) {
         return build(request, HttpStatus.CONFLICT, ex.getMessage());
     }
 
     @ExceptionHandler(ForbiddenException.class)
-    public ResponseEntity<ApiError> forbidden(ForbiddenException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> forbidden(ForbiddenException ex, HttpServletRequest request) {
         return build(request, HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(AccountLockedException.class)
-    public ResponseEntity<ApiError> locked(AccountLockedException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> locked(AccountLockedException ex, HttpServletRequest request) {
         return build(request, HttpStatus.LOCKED, ex.getMessage());
     }
 
     @ExceptionHandler(ServiceUnavailableException.class)
-    public ResponseEntity<ApiError> serviceUnavailable(ServiceUnavailableException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> serviceUnavailable(ServiceUnavailableException ex, HttpServletRequest request) {
         log.warn("Servicio dependiente no disponible en {}: {}", request.getRequestURI(), ex.getMessage());
         return build(request, HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
     @ExceptionHandler({InvalidTokenException.class, JwtException.class})
-    public ResponseEntity<ApiError> invalidToken(RuntimeException ex, HttpServletRequest request) {
-        return build(request, HttpStatus.UNAUTHORIZED, ex.getMessage());
+    public ResponseEntity<ProblemDetail> invalidToken(RuntimeException ex, HttpServletRequest request) {
+        return build(request, HttpStatus.UNAUTHORIZED, "Token inválido o expirado");
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ApiError> accessDenied(AccessDeniedException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> accessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return build(request, HttpStatus.FORBIDDEN, "No tiene permisos para realizar esta operación");
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ApiError> authentication(AuthenticationException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> authentication(AuthenticationException ex, HttpServletRequest request) {
         return build(request, HttpStatus.UNAUTHORIZED,
                 (ex.getMessage() == null) ? "No autorizado" : ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiError> validation(MethodArgumentNotValidException ex, HttpServletRequest request) {
-        List<FieldErrorDetail> detalles = ex.getBindingResult().getFieldErrors().stream()
-                .map(this::toDetail)
-                .toList();
-        String message = detalles.isEmpty()
+    public ResponseEntity<ProblemDetail> validation(MethodArgumentNotValidException ex, HttpServletRequest request) {
+        Map<String, String> errores = new LinkedHashMap<>();
+        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
+            errores.putIfAbsent(error.getField(), error.getDefaultMessage());
+        }
+        String detalle = errores.isEmpty()
                 ? "Datos inválidos"
-                : detalles.get(0).field() + ": " + detalles.get(0).message();
-        String path = request.getRequestURI();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new ApiError(null, HttpStatus.BAD_REQUEST.value(),
-                        HttpStatus.BAD_REQUEST.getReasonPhrase(), message, path, detalles));
-    }
-
-    private FieldErrorDetail toDetail(FieldError error) {
-        return new FieldErrorDetail(error.getField(), error.getDefaultMessage());
+                : errores.entrySet().iterator().next().getKey() + ": " + errores.values().iterator().next();
+        return responder(Problemas.validacion(detalle, request.getRequestURI(), errores));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> unreadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
         return build(request, HttpStatus.BAD_REQUEST, "Cuerpo de la solicitud inválido o malformado");
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiError> typeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> typeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
         return build(request, HttpStatus.BAD_REQUEST,
                 "El parámetro '" + ex.getName() + "' tiene un valor inválido");
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiError> missingParam(MissingServletRequestParameterException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> missingParam(MissingServletRequestParameterException ex, HttpServletRequest request) {
         return build(request, HttpStatus.BAD_REQUEST, "Falta el parámetro requerido '" + ex.getParameterName() + "'");
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<ApiError> methodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> methodNotSupported(HttpRequestMethodNotSupportedException ex,
+                                                            HttpServletRequest request) {
         return build(request, HttpStatus.METHOD_NOT_ALLOWED, "Método HTTP no soportado: " + ex.getMethod());
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<ApiError> noResource(NoResourceFoundException ex, HttpServletRequest request) {
-        return build(request, HttpStatus.NOT_FOUND, "Recurso no encontrado: " + ex.getResourcePath());
+    public ResponseEntity<ProblemDetail> noResource(NoResourceFoundException ex, HttpServletRequest request) {
+        return build(request, HttpStatus.NOT_FOUND, "Recurso no encontrado");
     }
 
+    /** El mensaje de la excepción solo va al log (con el correlationId), nunca al cliente. */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiError> unexpected(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> unexpected(Exception ex, HttpServletRequest request) {
         log.error("Error no controlado en {}", request.getRequestURI(), ex);
-        return build(request, HttpStatus.INTERNAL_SERVER_ERROR, "Error interno del servidor");
+        return build(request, HttpStatus.INTERNAL_SERVER_ERROR,
+                "Error interno del servidor. Indica el correlationId si reportas el problema.");
     }
 }

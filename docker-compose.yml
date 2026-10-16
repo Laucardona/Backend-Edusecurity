@@ -95,6 +95,9 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       ACCESO_URL_RESTABLECER: ${ACCESO_URL_RESTABLECER:-http://localhost:5500/restablecer.html}
+      # Administrador inicial: sin ADMIN_PASSWORD no se crea
+      ADMIN_CORREO: ${ADMIN_CORREO:-admin@edusecurity.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     # No se publica: solo accesible a través del gateway
     expose:
       - "8081"
@@ -222,6 +225,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:5500,http://localhost:3000}
     ports:
       - "8080:8080"
     healthcheck:

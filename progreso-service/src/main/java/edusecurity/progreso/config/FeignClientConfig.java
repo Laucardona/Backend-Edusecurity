@@ -1,13 +1,16 @@
 package edusecurity.progreso.config;
 
+import edusecurity.common.web.CorrelationId;
 import feign.RequestInterceptor;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Agrega la cabecera X-Service-Key a todas las llamadas Feign para que los
- * servicios destino autentiquen las llamadas internas (rol INTERNAL).
+ * Cabeceras de todas las llamadas Feign: X-Service-Key para que los servicios destino
+ * autentiquen la llamada interna (rol INTERNAL) y X-Correlation-Id para seguir la petición
+ * original en los logs de todos los servicios.
  */
 @Configuration
 public class FeignClientConfig {
@@ -19,6 +22,17 @@ public class FeignClientConfig {
         return template -> {
             if (internalKey != null && !internalKey.isBlank()) {
                 template.header("X-Service-Key", internalKey);
+            }
+        };
+    }
+
+    /** Propaga el id de correlación del MDC. Fuera de una petición (tareas programadas) no hay ninguno. */
+    @Bean
+    public RequestInterceptor correlationIdInterceptor() {
+        return template -> {
+            String id = MDC.get(CorrelationId.MDC_KEY);
+            if (id != null) {
+                template.header(CorrelationId.HEADER, id);
             }
         };
     }

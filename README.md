@@ -54,8 +54,15 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 ## Características completas
 
 - **Accesos (M01)**: política de contraseñas (10+ caracteres con mayúscula, minúscula, número y especial), bloqueo temporal tras 5 intentos fallidos, sesiones persistidas con cierre de sesión e historial, y recuperación de contraseña por correo con token de un solo uso.
-- **Seguridad**: JWT validado en el Gateway *y* en cada servicio (defensa en profundidad), RBAC con `@PreAuthorize` (`ADMIN`, `ESTUDIANTE`), registro público siempre `ESTUDIANTE` (sin escalada de privilegios), BCrypt, refresh token con rotación, cabecera `X-Service-Key` para llamadas servicio a servicio.
-- **Errores estandarizados**: `GlobalExceptionHandler` con formato `{timestamp, status, error, message, path, fieldErrors}` en todos los servicios (404/400/403/401/409/503/500).
+- **Seguridad**: JWT validado en el Gateway *y* en cada servicio (defensa en profundidad), RBAC con `@PreAuthorize` (`ADMIN`, `ESTUDIANTE`), registro público siempre `ESTUDIANTE` (sin escalada de privilegios), BCrypt, refresh token con rotación, cabecera `X-Service-Key` para llamadas servicio a servicio. En el borde, el gateway es el único que aplica CORS (orígenes explícitos de `CORS_ORIGENES`), quita `X-Service-Key` y `X-User-*` que lleguen de clientes externos y responde 404 a cualquier ruta `/internal/**`.
+- **Errores estandarizados (RFC 9457)**: todos los servicios y el gateway responden los errores como `application/problem+json` con `type` (`urn:edusecurity:problema:<tipo>`), `title`, `status`, `detail`, `instance`, `correlationId`, `timestamp` y, en validaciones, `errores` (campo → mensaje). Los códigos HTTP no cambian (400/401/403/404/409/423/503/500) y un 500 nunca expone el mensaje de la excepción. Ejemplo:
+
+  ```json
+  {"type":"urn:edusecurity:problema:no-encontrado","title":"Recurso no encontrado","status":404,
+   "detail":"Módulo no encontrado con id 9","instance":"/api/modulos/9",
+   "correlationId":"3f2b...","timestamp":"2026-10-15T21:40:00Z"}
+  ```
+- **Id de correlación**: cada petición lleva `X-Correlation-Id`. El gateway lo genera si no llega (o si no es un UUID ni un token seguro de hasta 64 caracteres), lo reenvía al servicio y lo devuelve en la respuesta. Cada servicio lo pone en el MDC (aparece en cada línea de log) y Feign lo propaga entre servicios.
 - **Validaciones**: `jakarta.validation` en todos los DTOs con detalle por campo.
 - **Paginación**: `PageResponse<T>` uniforme (`content`, `page`, `size`, `totalElements`, `totalPages`, `first`, `last`) con filtros `q` y ordenamiento.
 - **Resiliencia**: Circuit Breaker (Resilience4j) con fallback 503 + reintentos con backoff para GET en el Gateway; timeouts Feign en `progreso-service` y `simulacion-service`; envío de resultados de simulaciones después del commit con reintento programado (outbox ligero).
@@ -134,9 +141,10 @@ Requisitos locales: PostgreSQL 16 ejecutándose, con las bases `edusecurity_auth
 
 ### Credenciales iniciales
 
-| Correo | Contraseña | Rol |
-|---|---|---|
-| `admin@edusecurity.com` | `Admin123*` | ADMIN |
+No hay contraseña de administrador por defecto. El administrador inicial se crea al arrancar
+auth-service solo si defines `ADMIN_PASSWORD` (y opcionalmente `ADMIN_CORREO`, por defecto
+`admin@edusecurity.com`). Sin `ADMIN_PASSWORD` no se crea y queda una advertencia en el log;
+la contraseña nunca se escribe en los logs. Cámbiala después del primer ingreso.
 
 El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 
@@ -207,6 +215,8 @@ Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/open
 | `ACCESO_MAX_INTENTOS` / `ACCESO_DURACION_BLOQUEO` | `5` / `15m` | Intentos fallidos que bloquean la cuenta y por cuánto tiempo |
 | `ACCESO_VIGENCIA_RECUPERACION` | `30m` | Vigencia del enlace de recuperación de contraseña |
 | `ACCESO_URL_RESTABLECER` | `http://localhost:5500/restablecer.html` | Página del frontend que recibe `?token=` |
+| `ADMIN_CORREO` / `ADMIN_PASSWORD` | `admin@edusecurity.com` / vacío | Administrador inicial. Sin `ADMIN_PASSWORD` no se crea |
+| `CORS_ORIGENES` | `http://localhost:5500,http://localhost:3000` | Orígenes del frontend que el gateway acepta por CORS (con credenciales; `*` no se permite y el gateway no arranca) |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` / `MAIL_FROM` | vacío / `587` | SMTP para los correos. Sin `MAIL_HOST` no se envía ningún correo |
 
 Los secretos no están en el repositorio. Para Docker, copia `.env.example` a `.env` (ignorado por Git) y genera valores propios:
@@ -240,6 +250,10 @@ Para ejecutar un servicio desde VS Code o IntelliJ, define `JWT_SECRET` e `INTER
 - `contenido-service`: CRUD de módulos/lecciones con validaciones y roles.
 - `progreso-service`: upsert, autorización y cálculo de resúmenes (Mockito).
 - `edusecurity-common` y `api-gateway`: emisión/validación de JWT.
+
+## Contribuir
+
+Lee [CONTRIBUTING.md](CONTRIBUTING.md): flujo de ramas `feature/* → develop → main`, Conventional Commits, PR con la CI en verde y la aprobación de otro integrante, y nunca subir secretos.
 
 ## Autores
 

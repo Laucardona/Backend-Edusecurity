@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Propiedades de seguridad HTTP del filtro JWT y de CORS.
+ * Propiedades de seguridad HTTP del filtro JWT. CORS solo se configura en el gateway.
  */
 @ConfigurationProperties(prefix = "app.security")
 public class ApiSecurityProperties {
@@ -15,9 +15,6 @@ public class ApiSecurityProperties {
 
     /** Clave compartida para llamadas servicio a servicio (cabecera X-Service-Key). */
     private String internalKey = "";
-
-    /** Orígenes permitidos para CORS. */
-    private List<String> allowedOriginPatterns = new ArrayList<>(List.of("*"));
 
     /** Habilita el filtro de seguridad JWT. */
     private boolean enabled = false;
@@ -36,14 +33,6 @@ public class ApiSecurityProperties {
 
     public void setInternalKey(String internalKey) {
         this.internalKey = internalKey;
-    }
-
-    public List<String> getAllowedOriginPatterns() {
-        return allowedOriginPatterns;
-    }
-
-    public void setAllowedOriginPatterns(List<String> allowedOriginPatterns) {
-        this.allowedOriginPatterns = allowedOriginPatterns;
     }
 
     public boolean isEnabled() {
