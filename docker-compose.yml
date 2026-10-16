@@ -12,22 +12,25 @@ name: edusecurity-backend
 
 services:
 
-  # ------------------------------------------------------------------ MySQL
-  mysql:
-    image: mysql:8.4
-    container_name: edusecurity-mysql
+  # ------------------------------------------------------------- PostgreSQL
+  # Una base por servicio, cada una con su propio rol (docker/postgres-init/01-databases.sh).
+  postgres:
+    image: postgres:16-alpine
+    container_name: edusecurity-postgres
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env}
-      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      DB_PASSWORD_AUTH: ${DB_PASSWORD_AUTH:?Define DB_PASSWORD_AUTH en .env}
+      DB_PASSWORD_CONTENIDO: ${DB_PASSWORD_CONTENIDO:?Define DB_PASSWORD_CONTENIDO en .env}
+      DB_PASSWORD_PROGRESO: ${DB_PASSWORD_PROGRESO:?Define DB_PASSWORD_PROGRESO en .env}
+      DB_PASSWORD_SIMULACION: ${DB_PASSWORD_SIMULACION:?Define DB_PASSWORD_SIMULACION en .env}
       TZ: America/Bogota
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
-      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -72,16 +75,16 @@ services:
       context: ./auth-service
     container_name: edusecurity-auth-service
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       config-server:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/edusecurity_auth?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
-      DB_USERNAME: edusecurity
-      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      DB_URL: jdbc:postgresql://postgres:5432/edusecurity_auth
+      DB_USERNAME: auth_svc
+      DB_PASSWORD: ${DB_PASSWORD_AUTH:?Define DB_PASSWORD_AUTH en .env}
       EUREKA_URL: http://eureka-server:8761/eureka/
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
@@ -109,16 +112,16 @@ services:
       context: ./contenido-service
     container_name: edusecurity-contenido-service
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       config-server:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/edusecurity_contenido?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
-      DB_USERNAME: edusecurity
-      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      DB_URL: jdbc:postgresql://postgres:5432/edusecurity_contenido
+      DB_USERNAME: contenido_svc
+      DB_PASSWORD: ${DB_PASSWORD_CONTENIDO:?Define DB_PASSWORD_CONTENIDO en .env}
       EUREKA_URL: http://eureka-server:8761/eureka/
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
@@ -139,7 +142,7 @@ services:
       context: ./progreso-service
     container_name: edusecurity-progreso-service
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       config-server:
         condition: service_healthy
@@ -150,9 +153,9 @@ services:
       contenido-service:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/edusecurity_progreso?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
-      DB_USERNAME: edusecurity
-      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      DB_URL: jdbc:postgresql://postgres:5432/edusecurity_progreso
+      DB_USERNAME: progreso_svc
+      DB_PASSWORD: ${DB_PASSWORD_PROGRESO:?Define DB_PASSWORD_PROGRESO en .env}
       EUREKA_URL: http://eureka-server:8761/eureka/
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
@@ -173,16 +176,16 @@ services:
       context: ./simulacion-service
     container_name: edusecurity-simulacion-service
     depends_on:
-      mysql:
+      postgres:
         condition: service_healthy
       config-server:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/edusecurity_simulacion?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
-      DB_USERNAME: edusecurity
-      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      DB_URL: jdbc:postgresql://postgres:5432/edusecurity_simulacion
+      DB_USERNAME: simulacion_svc
+      DB_PASSWORD: ${DB_PASSWORD_SIMULACION:?Define DB_PASSWORD_SIMULACION en .env}
       EUREKA_URL: http://eureka-server:8761/eureka/
       CONFIG_SERVER_URL: http://config-server:8888
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
@@ -230,7 +233,7 @@ services:
     networks: [edusecurity]
 
 volumes:
-  mysql_data:
+  postgres_data:
 
 # Red interna: los microservicios solo se comunican entre sí y a través del gateway
 networks:

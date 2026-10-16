@@ -23,7 +23,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
                    ▼                                                            ▼
         ┌───────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
         │ DB: edusecurity_auth  │  │DB:edusecurity_contenido  │  │DB:edusecurity_progreso   │
-        │       (MySQL)         │  │       (MySQL)            │  │       (MySQL)            │
+        │     (PostgreSQL)      │  │     (PostgreSQL)         │  │     (PostgreSQL)         │
         └───────────────────────┘  └──────────────────────────┘  └──────────────────────────┘
 
    Infraestructura: eureka-server:8761 (descubrimiento) · config-server:8888 (config central)
@@ -46,7 +46,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 
 - Java 21 · Spring Boot 3.5 · Spring Cloud 2025.0 (Gateway, Eureka, Config, OpenFeign, Resilience4j)
 - Spring Security + JWT (access token 10 h / refresh token 7 días, rotación)
-- Spring Data JPA + Flyway (migraciones versionadas) + MySQL 8 (H2 en pruebas)
+- Spring Data JPA + Flyway (migraciones versionadas) + PostgreSQL 16 (H2 en modo PostgreSQL en pruebas)
 - springdoc-openapi / Swagger UI
 - Docker Compose con healthchecks y orden de arranque por dependencias
 - Maven multi-módulo · GitHub Actions (CI)
@@ -60,7 +60,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 - **Paginación**: `PageResponse<T>` uniforme (`content`, `page`, `size`, `totalElements`, `totalPages`, `first`, `last`) con filtros `q` y ordenamiento.
 - **Resiliencia**: Circuit Breaker (Resilience4j) con fallback 503 + reintentos con backoff para GET en el Gateway; timeouts Feign en `progreso-service` y `simulacion-service`; envío de resultados de simulaciones después del commit con reintento programado (outbox ligero).
 - **Observabilidad**: Actuator (`health` con probes, `info`) + healthchecks de Docker.
-- **Datos**: Flyway con esquemas por servicio, seed idempotente (roles y usuario admin).
+- **Datos**: PostgreSQL 16 con una base y un rol por servicio, Flyway por servicio, seed idempotente (roles y usuario admin).
 - **Documentación**: Swagger por servicio y agregada en el Gateway.
 - **Pruebas**: tests unitarios (Mockito), tests de integración (MockMvc + H2) y validación de contexto.
 - **CI**: pipeline de compilación + pruebas + validación de `docker-compose.yml`.
@@ -71,7 +71,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 Backend-Edusecurity/
 ├── pom.xml                     # Padre Maven (multi-módulo)
 ├── docker-compose.yml          # Orquestación completa
-├── docker/mysql-init/          # Crea los 3 esquemas + usuario dedicado
+├── docker/postgres-init/       # Crea una base y un rol por servicio
 ├── edusecurity-common/         # Librería compartida (auto-config)
 ├── config-server/              # Config centralizada (config/application.yml)
 ├── eureka-server/              # Descubrimiento
@@ -104,7 +104,7 @@ src/main/resources/db/migration/  # Migraciones Flyway
 # 1) Construir los JAR (los Dockerfiles copian target/*.jar)
 ./mvnw clean package -DskipTests      # Windows: .\mvnw.cmd clean package -DskipTests
 
-# 2) Levantar todo (MySQL, config, eureka, servicios y gateway)
+# 2) Levantar todo (PostgreSQL, config, eureka, servicios y gateway)
 docker compose up --build
 ```
 
@@ -130,7 +130,7 @@ Orden de arranque (cada uno en una terminal):
 ./mvnw -pl api-gateway spring-boot:run
 ```
 
-Requisitos locales: MySQL 8 ejecutándose (el script `docker/mysql-init/01-databases.sql` crea los esquemas; cada servicio también crea su esquema automáticamente con `createDatabaseIfNotExist=true` y sus tablas con Flyway).
+Requisitos locales: PostgreSQL 16 ejecutándose, con las bases `edusecurity_auth`, `edusecurity_contenido`, `edusecurity_progreso` y `edusecurity_simulacion` y sus roles (`auth_svc`, ...). Lo más simple es levantar solo la base con Docker (`docker compose up -d postgres`), que ejecuta `docker/postgres-init/01-databases.sh`. Flyway crea las tablas al arrancar cada servicio. Define `DB_PASSWORD` con la contraseña del rol del servicio.
 
 ### Credenciales iniciales
 
@@ -194,14 +194,15 @@ Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/open
 
 | Variable | Default | Descripción |
 |---|---|---|
-| `DB_URL` | `jdbc:mysql://localhost:3306/edusecurity_<svc>...` | URL de la base de datos del servicio |
-| `DB_USERNAME` / `DB_PASSWORD` | `root` / vacío en local; en Docker, `edusecurity` y el valor de `.env` | Credenciales de BD |
+| `DB_URL` | `jdbc:postgresql://localhost:5432/edusecurity_<svc>` | URL de la base de datos del servicio |
+| `DB_USERNAME` / `DB_PASSWORD` | `<svc>_svc` / vacío | Rol y contraseña de la base del servicio. En Docker salen de `DB_PASSWORD_<SVC>` |
 | `EUREKA_URL` | `http://localhost:8761/eureka/` | Servidor de descubrimiento |
 | `CONFIG_SERVER_URL` | `http://localhost:8888` | Servidor de configuración |
 | `JWT_SECRET` | **obligatoria, sin valor por defecto** | Clave Base64 de al menos 32 bytes para firmar tokens |
 | `INTERNAL_API_KEY` | **obligatoria, sin valor por defecto** | Cabecera `X-Service-Key` servicio a servicio |
 | `PROGRESO_REINTENTO_MS` | `60000` | Cada cuánto `simulacion-service` reenvía a progreso-service los resultados pendientes |
-| `MYSQL_ROOT_PASSWORD` | **obligatoria en Docker** | Contraseña root del contenedor MySQL |
+| `POSTGRES_PASSWORD` | **obligatoria en Docker** | Contraseña del superusuario `postgres` del contenedor |
+| `DB_PASSWORD_AUTH` / `DB_PASSWORD_CONTENIDO` / `DB_PASSWORD_PROGRESO` / `DB_PASSWORD_SIMULACION` | **obligatorias en Docker** | Contraseña del rol de cada servicio (una distinta por servicio) |
 | `JWT_ACCESS_EXPIRATION` | `15m` | Vigencia del access token (corta para que el cierre de sesión sea efectivo) |
 | `ACCESO_MAX_INTENTOS` / `ACCESO_DURACION_BLOQUEO` | `5` / `15m` | Intentos fallidos que bloquean la cuenta y por cuánto tiempo |
 | `ACCESO_VIGENCIA_RECUPERACION` | `30m` | Vigencia del enlace de recuperación de contraseña |
@@ -222,7 +223,8 @@ Para ejecutar un servicio desde VS Code o IntelliJ, define `JWT_SECRET` e `INTER
 
 ## Decisiones de diseño
 
-- **Database por servicio**: cada microservicio posee su esquema y sus migraciones; no hay claves foráneas entre bases de datos, solo IDs cruzados.
+- **Database por servicio (ADR-002)**: cada microservicio tiene su propia base de PostgreSQL y sus migraciones; no hay claves foráneas entre bases de datos, solo IDs cruzados. Cada servicio se conecta con su propio rol (`auth_svc`, `contenido_svc`, `progreso_svc`, `simulacion_svc`), dueño solo de su base y sin acceso a las demás (`REVOKE ALL ... FROM PUBLIC`): mínimo privilegio, de modo que un servicio comprometido no expone los datos de los otros.
+- **PostgreSQL en lugar de MySQL**: el 2026-10-15, a solicitud de quien lidera el proyecto, el equipo cambió la decisión de ADR-002 de MySQL 8 a PostgreSQL 16. Las migraciones de Flyway se editaron en el lugar (nada estaba en producción), así que cada entorno debe empezar con una base vacía.
 - **Sin relaciones JPA entre servicios**: `progreso-service` denormaliza consultando a los otros servicios con **OpenFeign** (+ `X-Service-Key`).
 - **Analítica dentro de progreso-service**: el panel administrativo (HU33) vive en el paquete `edusecurity.progreso.analitica`, no en un servicio nuevo. ADR-001 y el diseño permiten que analítica empiece como módulo de formación/progreso y se extraiga después sin cambiar contratos: el Gateway ya enruta `/api/analitica/**` aparte (`analitica-ruta`), así que extraerlo solo cambia el `uri`.
 - **JWT doblemente validado**: el Gateway rechaza tokens inválidos antes de enrutar y cada servicio vuelve a validar (nadie puede saltarse el Gateway si llega directamente a la red interna).
