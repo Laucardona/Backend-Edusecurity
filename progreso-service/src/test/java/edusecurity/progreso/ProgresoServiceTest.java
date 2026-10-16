@@ -12,6 +12,7 @@ import edusecurity.progreso.dto.ProgresoResponse;
 import edusecurity.progreso.dto.ResumenUsuarioResponse;
 import edusecurity.progreso.entity.Progreso;
 import edusecurity.progreso.repository.ProgresoRepository;
+import edusecurity.progreso.repository.SimulacionCompletadaRepository;
 import edusecurity.progreso.service.ProgresoService;
 import edusecurity.progreso.service.ResumenService;
 import edusecurity.common.web.PageResponse;
@@ -53,6 +54,9 @@ class ProgresoServiceTest {
     @InjectMocks
     private ProgresoService progresoService;
 
+    @Mock
+    private SimulacionCompletadaRepository simulacionRepository;
+
     private ResumenService resumenService;
 
     private TokenInfo estudiante;
@@ -63,7 +67,7 @@ class ProgresoServiceTest {
     @BeforeEach
     void setUp() {
         // Mockito inyecta progresoService antes de los @BeforeEach
-        resumenService = new ResumenService(progresoService, repository);
+        resumenService = new ResumenService(progresoService, repository, simulacionRepository);
 
         estudiante = new TokenInfo("laura@correo.com", 1L, "ESTUDIANTE", "access");
         admin = new TokenInfo("admin@correo.com", 99L, "ADMIN", "access");

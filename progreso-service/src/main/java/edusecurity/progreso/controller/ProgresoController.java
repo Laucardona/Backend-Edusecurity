@@ -6,12 +6,15 @@ import edusecurity.progreso.dto.ProgresoRequest;
 import edusecurity.progreso.dto.ProgresoResponse;
 import edusecurity.progreso.dto.ResumenGlobalResponse;
 import edusecurity.progreso.dto.ResumenUsuarioResponse;
+import edusecurity.progreso.dto.SimulacionCompletadaResponse;
 import edusecurity.progreso.service.ProgresoService;
 import edusecurity.progreso.service.ResumenService;
+import edusecurity.progreso.service.SimulacionCompletadaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,10 +36,13 @@ public class ProgresoController {
 
     private final ProgresoService progresoService;
     private final ResumenService resumenService;
+    private final SimulacionCompletadaService simulacionService;
 
-    public ProgresoController(ProgresoService progresoService, ResumenService resumenService) {
+    public ProgresoController(ProgresoService progresoService, ResumenService resumenService,
+                              SimulacionCompletadaService simulacionService) {
         this.progresoService = progresoService;
         this.resumenService = resumenService;
+        this.simulacionService = simulacionService;
     }
 
     @PostMapping
@@ -53,6 +59,14 @@ public class ProgresoController {
     public PageResponse<ProgresoResponse> miProgreso(@AuthenticationPrincipal TokenInfo principal,
                                                      @PageableDefault(size = 20) Pageable pageable) {
         return progresoService.listarPorUsuario(principal.usuarioId(), pageable);
+    }
+
+    @GetMapping("/simulaciones/mias")
+    @Operation(summary = "Mis simulaciones terminadas (phishing y laboratorios guiados), las más recientes primero")
+    public PageResponse<SimulacionCompletadaResponse> misSimulaciones(
+            @AuthenticationPrincipal TokenInfo principal,
+            @PageableDefault(size = 20, sort = "finalizadaEn", direction = Sort.Direction.DESC) Pageable pageable) {
+        return simulacionService.listarPorUsuario(principal.usuarioId(), pageable);
     }
 
     @GetMapping

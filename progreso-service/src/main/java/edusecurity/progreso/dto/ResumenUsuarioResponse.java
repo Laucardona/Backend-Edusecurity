@@ -5,6 +5,9 @@ import java.util.List;
 
 /**
  * Resumen completo del progreso de un usuario.
+ *
+ * @param simulacionesCompletadas simulaciones terminadas (finalizadas o vencidas)
+ * @param simulacionesAprobadas   de ellas, las aprobadas
  */
 public record ResumenUsuarioResponse(
         Long usuarioId,
@@ -14,5 +17,7 @@ public record ResumenUsuarioResponse(
         long leccionesCompletadas,
         Double porcentajePromedio,
         LocalDateTime fechaUltimaActividad,
-        List<ResumenModuloResponse> porModulo) {
+        List<ResumenModuloResponse> porModulo,
+        long simulacionesCompletadas,
+        long simulacionesAprobadas) {
 }

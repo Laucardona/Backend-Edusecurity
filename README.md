@@ -58,7 +58,7 @@ Backend de la plataforma **EduSecurity** reestructurado como **arquitectura de m
 - **Errores estandarizados**: `GlobalExceptionHandler` con formato `{timestamp, status, error, message, path, fieldErrors}` en todos los servicios (404/400/403/401/409/503/500).
 - **Validaciones**: `jakarta.validation` en todos los DTOs con detalle por campo.
 - **Paginación**: `PageResponse<T>` uniforme (`content`, `page`, `size`, `totalElements`, `totalPages`, `first`, `last`) con filtros `q` y ordenamiento.
-- **Resiliencia**: Circuit Breaker (Resilience4j) con fallback 503 + reintentos con backoff para GET en el Gateway; timeouts Feign en `progreso-service`.
+- **Resiliencia**: Circuit Breaker (Resilience4j) con fallback 503 + reintentos con backoff para GET en el Gateway; timeouts Feign en `progreso-service` y `simulacion-service`; envío de resultados de simulaciones después del commit con reintento programado (outbox ligero).
 - **Observabilidad**: Actuator (`health` con probes, `info`) + healthchecks de Docker.
 - **Datos**: Flyway con esquemas por servicio, seed idempotente (roles y usuario admin).
 - **Documentación**: Swagger por servicio y agregada en el Gateway.
@@ -159,7 +159,8 @@ El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 | POST/PUT/DELETE | `/api/modulos`, `/api/lecciones` | ADMIN | Gestión de contenido |
 | POST | `/api/progreso` | Autenticado | Upsert de progreso (usuario propio; ADMIN: cualquiera) |
 | GET | `/api/progreso/mio` | Autenticado | Mi progreso paginado |
-| GET | `/api/progreso/resumen/mio` | Autenticado | Mi avance por módulo |
+| GET | `/api/progreso/simulaciones/mias` | Autenticado | Mis simulaciones terminadas (phishing y laboratorios guiados), las más recientes primero |
+| GET | `/api/progreso/resumen/mio` | Autenticado | Mi avance por módulo, con `simulacionesCompletadas` y `simulacionesAprobadas` |
 | GET | `/api/progreso/resumen/global` | ADMIN | Estadísticas globales |
 | GET | `/api/simulaciones`, `/api/simulaciones/{uuid}`, `/api/simulaciones/indicadores` | Autenticado | Catálogo de escenarios (filtro `tipo`: phishing o `LABORATORIO`) y señales de alerta |
 | POST | `/api/simulaciones/{uuid}/sesiones` | Autenticado | Iniciar un laboratorio (bandeja o primer paso + tiempo límite) |
@@ -168,6 +169,22 @@ El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 | GET | `/api/simulaciones/sesiones/{sesion}/paso` | Dueño o ADMIN | Laboratorio guiado: paso actual con su recurso simulado y opciones, sin puntos ni respuesta correcta |
 | POST | `/api/simulaciones/sesiones/{sesion}/acciones` | Dueño | Laboratorio guiado: `{pasoCodigo, opcionCodigo}` → retroalimentación y siguiente paso, o `finalizada` (409 si no es el paso actual, 400 si la opción no es del paso) |
 | POST/PATCH | `/api/simulaciones`, `/api/simulaciones/{uuid}/publicacion` | ADMIN | Crear (por ahora solo phishing; los laboratorios guiados se cargan por migración) y publicar escenarios |
+
+Endpoints internos (servicio a servicio, solo con `X-Service-Key`, rol `INTERNAL`). El Gateway solo enruta `/api/**`, así que `/internal/**` no es accesible desde fuera; no agregues rutas `/internal/**` al Gateway.
+
+| Método | Ruta | Servicio | Descripción |
+|---|---|---|---|
+| POST | `/internal/progreso/simulaciones` | progreso-service | Registra el resultado de una simulación terminada. Idempotente por `sesionUuid`: 201 al crear, 200 con el registro existente si se repite |
+
+### Flujo simulación → progreso (I7.4)
+
+1. Una sesión se cierra en `simulacion-service` (finalizar, último paso de un laboratorio guiado o vencimiento con estado `VENCIDA`).
+2. Después del commit (`@TransactionalEventListener(AFTER_COMMIT)`), `NotificadorProgreso` envía el resultado a `POST /internal/progreso/simulaciones` por Feign (Eureka `edusecurity-progreso`, cabecera `X-Service-Key`) y marca la sesión con `progreso_notificado = true`.
+3. Si progreso-service no responde, el estudiante igual recibe su respuesta: se registra una advertencia y la sesión queda pendiente.
+4. Una tarea `@Scheduled` reenvía las sesiones cerradas pendientes en lotes pequeños (cada `PROGRESO_REINTENTO_MS`, 60 s por defecto). Como el registro es idempotente, un reenvío nunca duplica datos.
+5. El estudiante consulta su historial en `/api/progreso/simulaciones/mias`, y `/api/progreso/resumen/mio` incluye `simulacionesCompletadas` y `simulacionesAprobadas`.
+
+Es un outbox ligero hasta el outbox completo de I2.2. Las sesiones que vencen sin que nadie las vuelva a consultar se cierran (y se envían) la próxima vez que se accede a ellas.
 
 Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/openapi/contenido/v3/api-docs`, `/openapi/progreso/v3/api-docs`, `/openapi/simulacion/v3/api-docs`.
 
@@ -181,6 +198,7 @@ Documentación por servicio tras el Gateway: `/openapi/auth/v3/api-docs`, `/open
 | `CONFIG_SERVER_URL` | `http://localhost:8888` | Servidor de configuración |
 | `JWT_SECRET` | **obligatoria, sin valor por defecto** | Clave Base64 de al menos 32 bytes para firmar tokens |
 | `INTERNAL_API_KEY` | **obligatoria, sin valor por defecto** | Cabecera `X-Service-Key` servicio a servicio |
+| `PROGRESO_REINTENTO_MS` | `60000` | Cada cuánto `simulacion-service` reenvía a progreso-service los resultados pendientes |
 | `MYSQL_ROOT_PASSWORD` | **obligatoria en Docker** | Contraseña root del contenedor MySQL |
 | `JWT_ACCESS_EXPIRATION` | `15m` | Vigencia del access token (corta para que el cierre de sesión sea efectivo) |
 | `ACCESO_MAX_INTENTOS` / `ACCESO_DURACION_BLOQUEO` | `5` / `15m` | Intentos fallidos que bloquean la cuenta y por cuánto tiempo |

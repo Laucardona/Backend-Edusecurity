@@ -59,6 +59,10 @@ public class SesionSimulacion {
     @Column
     private Integer puntajeMaximo;
 
+    /** true cuando progreso-service ya recibió el resultado de la sesión cerrada (I7.4). */
+    @Column(nullable = false)
+    private Boolean progresoNotificado = false;
+
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RespuestaMensaje> respuestas = new ArrayList<>();
 
@@ -161,6 +165,14 @@ public class SesionSimulacion {
 
     public List<RespuestaMensaje> getRespuestas() {
         return respuestas;
+    }
+
+    public Boolean getProgresoNotificado() {
+        return progresoNotificado;
+    }
+
+    public void marcarProgresoNotificado() {
+        this.progresoNotificado = true;
     }
 
     public PasoLaboratorio getPasoActual() {
