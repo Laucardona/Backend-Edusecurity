@@ -14,11 +14,12 @@ public record EscenarioDetalle(
         Nivel nivel,
         int duracionSegundos,
         int totalMensajes,
+        int totalPasos,
         boolean publicado) {
 
     public static EscenarioDetalle from(Escenario e) {
         return new EscenarioDetalle(e.getUuid(), e.getTipo(), e.getTitulo(), e.getDescripcion(),
                 e.getContexto(), e.getNivel(), e.getDuracionSegundos(), e.getMensajes().size(),
-                Boolean.TRUE.equals(e.getPublicado()));
+                e.getPasos().size(), Boolean.TRUE.equals(e.getPublicado()));
     }
 }

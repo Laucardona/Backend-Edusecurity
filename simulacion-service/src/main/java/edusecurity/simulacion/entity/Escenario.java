@@ -16,9 +16,13 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
-/** Laboratorio de phishing: un contexto de trabajo y una bandeja de mensajes simulados. */
+/**
+ * Escenario de simulación con un contexto de trabajo. Los de phishing tienen una bandeja de
+ * mensajes simulados; los de tipo LABORATORIO, una secuencia de pasos con decisiones.
+ */
 @Entity
 @Table(name = "escenarios")
 public class Escenario {
@@ -59,6 +63,11 @@ public class Escenario {
     @OrderBy("orden ASC")
     private List<MensajeSimulado> mensajes = new ArrayList<>();
 
+    /** Pasos del laboratorio guiado (solo tipo LABORATORIO). */
+    @OneToMany(mappedBy = "escenario", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("orden ASC")
+    private List<PasoLaboratorio> pasos = new ArrayList<>();
+
     @Column(nullable = false)
     private LocalDateTime fechaCreacion;
 
@@ -82,6 +91,19 @@ public class Escenario {
     public void agregarMensaje(MensajeSimulado mensaje) {
         mensaje.setEscenario(this);
         mensajes.add(mensaje);
+    }
+
+    public void agregarPaso(PasoLaboratorio paso) {
+        paso.setEscenario(this);
+        pasos.add(paso);
+    }
+
+    public Optional<PasoLaboratorio> paso(String codigo) {
+        return pasos.stream().filter(p -> p.getCodigo().equals(codigo)).findFirst();
+    }
+
+    public boolean esLaboratorioGuiado() {
+        return tipo != null && tipo.esLaboratorioGuiado();
     }
 
     public Long getId() {
@@ -150,6 +172,10 @@ public class Escenario {
 
     public List<MensajeSimulado> getMensajes() {
         return mensajes;
+    }
+
+    public List<PasoLaboratorio> getPasos() {
+        return pasos;
     }
 
     public LocalDateTime getFechaCreacion() {

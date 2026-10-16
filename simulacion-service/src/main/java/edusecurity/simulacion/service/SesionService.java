@@ -1,12 +1,17 @@
 package edusecurity.simulacion.service;
 
+import edusecurity.common.exception.BadRequestException;
 import edusecurity.common.exception.ConflictException;
 import edusecurity.common.exception.ResourceNotFoundException;
 import edusecurity.common.security.TokenInfo;
 import edusecurity.common.web.PageResponse;
+import edusecurity.simulacion.dto.AccionRequest;
+import edusecurity.simulacion.dto.AccionResponse;
 import edusecurity.simulacion.dto.EscenarioDetalle;
 import edusecurity.simulacion.dto.IndicadorCatalogo;
 import edusecurity.simulacion.dto.MensajeBandeja;
+import edusecurity.simulacion.dto.PasoRecorrido;
+import edusecurity.simulacion.dto.PasoResponse;
 import edusecurity.simulacion.dto.RespuestaRequest;
 import edusecurity.simulacion.dto.RespuestaResponse;
 import edusecurity.simulacion.dto.ResultadoResponse;
@@ -14,22 +19,28 @@ import edusecurity.simulacion.dto.RetroalimentacionMensaje;
 import edusecurity.simulacion.dto.SenalDetalle;
 import edusecurity.simulacion.dto.SesionResponse;
 import edusecurity.simulacion.dto.SesionResumen;
+import edusecurity.simulacion.entity.AccionLaboratorio;
 import edusecurity.simulacion.entity.Clasificacion;
 import edusecurity.simulacion.entity.Escenario;
 import edusecurity.simulacion.entity.EstadoSesion;
 import edusecurity.simulacion.entity.Indicador;
 import edusecurity.simulacion.entity.MensajeSimulado;
+import edusecurity.simulacion.entity.OpcionPaso;
+import edusecurity.simulacion.entity.PasoLaboratorio;
 import edusecurity.simulacion.entity.RespuestaMensaje;
 import edusecurity.simulacion.entity.SesionSimulacion;
 import edusecurity.simulacion.entity.TipoIndicador;
 import edusecurity.simulacion.repository.SesionSimulacionRepository;
 import edusecurity.simulacion.service.CalificadorSimulacion.EvaluacionMensaje;
 import edusecurity.simulacion.service.CalificadorSimulacion.ResultadoCalificacion;
+import edusecurity.simulacion.service.MaquinaLaboratorio.Calificacion;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -40,7 +51,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Flujo del laboratorio: iniciar, responder cada mensaje, finalizar y ver la retroalimentación.
+ * Flujo de una sesión: iniciar, responder (mensajes de la bandeja en phishing o decisiones paso a
+ * paso en un laboratorio guiado), finalizar y ver la retroalimentación.
  * El tiempo límite se controla en el servidor; el reloj del cliente no cuenta.
  */
 @Service
@@ -51,19 +63,22 @@ public class SesionService {
     private final SesionSimulacionRepository sesionRepository;
     private final EscenarioService escenarioService;
     private final CalificadorSimulacion calificador;
+    private final MaquinaLaboratorio maquina;
     private final Clock clock;
 
     public SesionService(SesionSimulacionRepository sesionRepository, EscenarioService escenarioService,
-                         CalificadorSimulacion calificador, Clock clock) {
+                         CalificadorSimulacion calificador, MaquinaLaboratorio maquina, Clock clock) {
         this.sesionRepository = sesionRepository;
         this.escenarioService = escenarioService;
         this.calificador = calificador;
+        this.maquina = maquina;
         this.clock = clock;
     }
 
     /**
      * Inicia el laboratorio. Si el estudiante ya tiene una sesión en curso de este escenario,
      * la devuelve en lugar de crear otra (recargar la página no reinicia el reloj).
+     * En un laboratorio guiado, la sesión empieza en el paso de menor orden.
      */
     @Transactional
     public SesionResponse iniciar(String escenarioUuid, TokenInfo principal) {
@@ -80,7 +95,12 @@ public class SesionService {
             cerrar(sesion, ahora);
         }
 
-        SesionSimulacion nueva = sesionRepository.save(new SesionSimulacion(escenario, principal.usuarioId(), ahora));
+        SesionSimulacion nueva = new SesionSimulacion(escenario, principal.usuarioId(), ahora);
+        if (escenario.esLaboratorioGuiado()) {
+            nueva.setPasoActual(maquina.pasoInicial(escenario)
+                    .orElseThrow(() -> new ConflictException("El laboratorio no tiene pasos configurados")));
+        }
+        nueva = sesionRepository.save(nueva);
         log.info("Sesión de simulación iniciada: sesion={} escenario={} usuario={}",
                 nueva.getUuid(), escenario.getUuid(), principal.usuarioId());
         return aRespuesta(nueva, ahora);
@@ -94,18 +114,15 @@ public class SesionService {
         return aRespuesta(sesion, ahora);
     }
 
-    /** Guarda o cambia la decisión sobre un mensaje mientras la sesión siga abierta. */
+    /** Guarda o cambia la decisión sobre un mensaje mientras la sesión siga abierta. Solo phishing. */
     @Transactional(noRollbackFor = ConflictException.class)
     public RespuestaResponse responder(String sesionUuid, Long mensajeId, RespuestaRequest request, TokenInfo principal) {
         SesionSimulacion sesion = buscarPropia(sesionUuid, principal);
+        if (sesion.getEscenario().esLaboratorioGuiado()) {
+            throw new BadRequestException("Esta sesión es un laboratorio guiado: responde con /acciones, no con /respuestas");
+        }
         LocalDateTime ahora = ahora();
-
-        if (cerrarSiVencio(sesion, ahora)) {
-            throw new ConflictException("Se agotó el tiempo del laboratorio. Consulta tu resultado.");
-        }
-        if (sesion.getEstado() != EstadoSesion.EN_CURSO) {
-            throw new ConflictException("La sesión ya terminó y no admite más respuestas");
-        }
+        validarAbierta(sesion, ahora);
 
         MensajeSimulado mensaje = sesion.getEscenario().getMensajes().stream()
                 .filter(m -> m.getId().equals(mensajeId))
@@ -121,6 +138,53 @@ public class SesionService {
         respuesta.actualizar(request.clasificacion(), request.accion(), indicadores, ahora);
         sesionRepository.saveAndFlush(sesion);
         return RespuestaResponse.from(respuesta);
+    }
+
+    /** Paso actual del laboratorio guiado, sin puntos, respuesta correcta ni retroalimentación. */
+    @Transactional(noRollbackFor = ConflictException.class)
+    public PasoResponse pasoActual(String sesionUuid, TokenInfo principal) {
+        SesionSimulacion sesion = buscarLectura(sesionUuid, principal);
+        exigirLaboratorio(sesion);
+        validarAbierta(sesion, ahora());
+        return PasoResponse.from(sesion.getPasoActual());
+    }
+
+    /**
+     * Registra la decisión del estudiante en el paso actual y avanza la máquina de estados.
+     * Si la opción no lleva a otro paso, o el paso es final, la sesión se cierra con su puntaje.
+     */
+    @Transactional(noRollbackFor = ConflictException.class)
+    public AccionResponse registrarAccion(String sesionUuid, AccionRequest request, TokenInfo principal) {
+        SesionSimulacion sesion = buscarPropia(sesionUuid, principal);
+        exigirLaboratorio(sesion);
+        LocalDateTime ahora = ahora();
+        validarAbierta(sesion, ahora);
+
+        PasoLaboratorio paso = sesion.getPasoActual();
+        if (!paso.getCodigo().equals(request.pasoCodigo())) {
+            throw new ConflictException("El paso '" + request.pasoCodigo() + "' no es el paso actual del laboratorio ('"
+                    + paso.getCodigo() + "')");
+        }
+        if (sesion.pasoRespondido(paso.getId())) {
+            throw new ConflictException("El paso '" + paso.getCodigo() + "' ya fue respondido");
+        }
+        OpcionPaso opcion = paso.opcion(request.opcionCodigo())
+                .orElseThrow(() -> new BadRequestException("La opción '" + request.opcionCodigo()
+                        + "' no pertenece al paso '" + paso.getCodigo() + "'"));
+
+        sesion.agregarAccion(new AccionLaboratorio(paso, opcion, ahora));
+        Optional<PasoLaboratorio> siguiente = maquina.siguiente(paso, opcion);
+        sesion.setPasoActual(siguiente.orElse(null));
+        if (siguiente.isEmpty()) {
+            cerrar(sesion, ahora);
+        } else {
+            sesionRepository.saveAndFlush(sesion);
+        }
+
+        int acumulado = sesion.getAcciones().stream().mapToInt(AccionLaboratorio::getPuntos).sum();
+        return new AccionResponse(paso.getCodigo(), opcion.getCodigo(), Boolean.TRUE.equals(opcion.getEsCorrecta()),
+                opcion.getPuntos(), opcion.getRetroalimentacion(), acumulado, siguiente.isEmpty(),
+                siguiente.map(PasoResponse::from).orElse(null));
     }
 
     /** Termina la sesión y devuelve la retroalimentación. Repetir la llamada devuelve el mismo resultado. */
@@ -166,6 +230,22 @@ public class SesionService {
                 .orElseThrow(() -> ResourceNotFoundException.of("Sesión", uuid));
     }
 
+    private void exigirLaboratorio(SesionSimulacion sesion) {
+        if (!sesion.getEscenario().esLaboratorioGuiado()) {
+            throw new BadRequestException("Esta sesión no es un laboratorio guiado: responde los mensajes con /respuestas");
+        }
+    }
+
+    /** Cierra la sesión si venció. En cualquier caso, si ya no está en curso no admite más respuestas. */
+    private void validarAbierta(SesionSimulacion sesion, LocalDateTime ahora) {
+        if (cerrarSiVencio(sesion, ahora)) {
+            throw new ConflictException("Se agotó el tiempo del laboratorio. Consulta tu resultado.");
+        }
+        if (sesion.getEstado() != EstadoSesion.EN_CURSO) {
+            throw new ConflictException("La sesión ya terminó y no admite más respuestas");
+        }
+    }
+
     private boolean cerrarSiVencio(SesionSimulacion sesion, LocalDateTime ahora) {
         if (sesion.getEstado() == EstadoSesion.EN_CURSO && sesion.estaVencida(ahora)) {
             cerrar(sesion, ahora);
@@ -175,12 +255,23 @@ public class SesionService {
     }
 
     private void cerrar(SesionSimulacion sesion, LocalDateTime ahora) {
-        ResultadoCalificacion r = calificar(sesion);
+        int puntaje;
+        int maximo;
+        if (sesion.getEscenario().esLaboratorioGuiado()) {
+            Calificacion c = maquina.calificar(sesion.getEscenario(), sesion.getAcciones());
+            puntaje = c.puntaje();
+            maximo = c.puntajeMaximo();
+            sesion.setPasoActual(null);
+        } else {
+            ResultadoCalificacion r = calificar(sesion);
+            puntaje = r.puntaje();
+            maximo = r.puntajeMaximo();
+        }
         EstadoSesion estadoFinal = sesion.estaVencida(ahora) ? EstadoSesion.VENCIDA : EstadoSesion.FINALIZADA;
-        sesion.cerrar(estadoFinal, ahora, r.puntaje(), r.puntajeMaximo());
+        sesion.cerrar(estadoFinal, ahora, puntaje, maximo);
         sesionRepository.saveAndFlush(sesion);
         log.info("Sesión de simulación cerrada: sesion={} estado={} puntaje={}/{}",
-                sesion.getUuid(), estadoFinal, r.puntaje(), r.puntajeMaximo());
+                sesion.getUuid(), estadoFinal, puntaje, maximo);
     }
 
     private ResultadoCalificacion calificar(SesionSimulacion sesion) {
@@ -197,11 +288,18 @@ public class SesionService {
         long restantes = sesion.getEstado() == EstadoSesion.EN_CURSO
                 ? Math.max(0, Duration.between(ahora, sesion.getVenceEn()).toSeconds())
                 : 0;
+        PasoResponse paso = sesion.getEstado() == EstadoSesion.EN_CURSO && sesion.getPasoActual() != null
+                ? PasoResponse.from(sesion.getPasoActual())
+                : null;
         return new SesionResponse(sesion.getUuid(), sesion.getEstado(), sesion.getIniciadaEn(), sesion.getVenceEn(),
-                restantes, sesion.getRespuestas().size(), bandeja.size(), EscenarioDetalle.from(escenario), bandeja);
+                restantes, sesion.getRespuestas().size(), bandeja.size(), EscenarioDetalle.from(escenario), bandeja,
+                sesion.getAcciones().size(), paso);
     }
 
     private ResultadoResponse aResultado(SesionSimulacion sesion) {
+        if (sesion.getEscenario().esLaboratorioGuiado()) {
+            return aResultadoLaboratorio(sesion);
+        }
         ResultadoCalificacion r = calificar(sesion);
         List<RetroalimentacionMensaje> mensajes = r.evaluaciones().stream().map(this::aRetroalimentacion).toList();
 
@@ -213,10 +311,32 @@ public class SesionService {
         int peligrosas = (int) r.evaluaciones().stream().filter(EvaluacionMensaje::accionPeligrosa).count();
 
         Escenario escenario = sesion.getEscenario();
-        return new ResultadoResponse(sesion.getUuid(), escenario.getUuid(), escenario.getTitulo(), sesion.getEstado(),
-                sesion.getFinalizadaEn(), r.puntaje(), r.puntajeMaximo(), r.porcentaje(), r.aprobado(),
-                sesion.getRespuestas().size(), r.evaluaciones().size(), detectados, totalPhishing, falsosPositivos,
-                peligrosas, r.senalesAReforzar().stream().map(IndicadorCatalogo::from).toList(), mensajes);
+        return new ResultadoResponse(sesion.getUuid(), escenario.getUuid(), escenario.getTitulo(), escenario.getTipo(),
+                sesion.getEstado(), sesion.getFinalizadaEn(), r.puntaje(), r.puntajeMaximo(), r.porcentaje(),
+                r.aprobado(), sesion.getRespuestas().size(), r.evaluaciones().size(), detectados, totalPhishing,
+                falsosPositivos, peligrosas, r.senalesAReforzar().stream().map(IndicadorCatalogo::from).toList(),
+                mensajes, List.of());
+    }
+
+    private ResultadoResponse aResultadoLaboratorio(SesionSimulacion sesion) {
+        Escenario escenario = sesion.getEscenario();
+        Calificacion c = maquina.calificar(escenario, sesion.getAcciones());
+
+        List<PasoRecorrido> recorrido = new ArrayList<>();
+        int secuencia = 1;
+        for (AccionLaboratorio accion : sesion.getAcciones()) {
+            PasoLaboratorio paso = accion.getPaso();
+            OpcionPaso elegida = accion.getOpcion();
+            OpcionPaso mejor = maquina.mejorOpcion(paso);
+            recorrido.add(new PasoRecorrido(secuencia++, paso.getCodigo(), paso.getTitulo(),
+                    elegida.getCodigo(), elegida.getTexto(), Boolean.TRUE.equals(elegida.getEsCorrecta()),
+                    accion.getPuntos(), elegida.getRetroalimentacion(),
+                    mejor.getCodigo(), mejor.getTexto(), mejor.getPuntos(), mejor.getRetroalimentacion()));
+        }
+
+        return new ResultadoResponse(sesion.getUuid(), escenario.getUuid(), escenario.getTitulo(), escenario.getTipo(),
+                sesion.getEstado(), sesion.getFinalizadaEn(), c.puntaje(), c.puntajeMaximo(), c.porcentaje(),
+                c.aprobado(), 0, 0, 0, 0, 0, 0, List.of(), List.of(), recorrido);
     }
 
     private RetroalimentacionMensaje aRetroalimentacion(EvaluacionMensaje e) {

@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -61,6 +62,15 @@ public class SesionSimulacion {
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RespuestaMensaje> respuestas = new ArrayList<>();
 
+    /** Paso en el que está el estudiante en un laboratorio guiado; null en phishing o al terminar. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "paso_actual_id")
+    private PasoLaboratorio pasoActual;
+
+    @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    private List<AccionLaboratorio> acciones = new ArrayList<>();
+
     public SesionSimulacion() {
     }
 
@@ -86,6 +96,15 @@ public class SesionSimulacion {
     public void agregarRespuesta(RespuestaMensaje respuesta) {
         respuesta.setSesion(this);
         respuestas.add(respuesta);
+    }
+
+    public void agregarAccion(AccionLaboratorio accion) {
+        accion.setSesion(this);
+        acciones.add(accion);
+    }
+
+    public boolean pasoRespondido(Long pasoId) {
+        return acciones.stream().anyMatch(a -> a.getPaso().getId().equals(pasoId));
     }
 
     public void cerrar(EstadoSesion estadoFinal, LocalDateTime ahora, int puntaje, int puntajeMaximo) {
@@ -142,5 +161,17 @@ public class SesionSimulacion {
 
     public List<RespuestaMensaje> getRespuestas() {
         return respuestas;
+    }
+
+    public PasoLaboratorio getPasoActual() {
+        return pasoActual;
+    }
+
+    public void setPasoActual(PasoLaboratorio pasoActual) {
+        this.pasoActual = pasoActual;
+    }
+
+    public List<AccionLaboratorio> getAcciones() {
+        return acciones;
     }
 }

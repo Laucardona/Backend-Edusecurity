@@ -61,6 +61,12 @@ public class EscenarioService {
 
     @Transactional
     public EscenarioDetalle crear(EscenarioRequest request) {
+        // Pendiente: la creación de laboratorios guiados por API (pasos y opciones). Por ahora solo
+        // se cargan por migración; este endpoint crea únicamente escenarios de phishing.
+        if (request.tipo().esLaboratorioGuiado()) {
+            throw new BadRequestException("Los laboratorios guiados todavía no se pueden crear por API; "
+                    + "este endpoint solo crea escenarios de phishing");
+        }
         Escenario escenario = new Escenario();
         escenario.setTipo(request.tipo());
         escenario.setTitulo(request.titulo().trim());
