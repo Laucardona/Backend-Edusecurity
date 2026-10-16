@@ -26,6 +26,7 @@
         <module>auth-service</module>
         <module>contenido-service</module>
         <module>progreso-service</module>
+        <module>simulacion-service</module>
         <module>api-gateway</module>
     </modules>
 

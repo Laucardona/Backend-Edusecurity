@@ -79,6 +79,25 @@ spring:
                       factor: 2
                       basedOnPreviousValue: false
 
+            - id: simulacion-ruta
+              uri: lb://edusecurity-simulacion
+              predicates:
+                - Path=/api/simulaciones/**
+              filters:
+                - name: CircuitBreaker
+                  args:
+                    name: simulacionCB
+                    fallbackUri: forward:/fallback/simulacion
+                - name: Retry
+                  args:
+                    retries: 2
+                    methods: GET
+                    backoff:
+                      firstBackoff: 200ms
+                      maxBackoff: 1s
+                      factor: 2
+                      basedOnPreviousValue: false
+
             # Documentación agregada: expone el /v3/api-docs de cada servicio
             - id: auth-docs
               uri: lb://edusecurity-auth
@@ -100,6 +119,13 @@ spring:
                 - Path=/openapi/progreso/v3/api-docs
               filters:
                 - RewritePath=/openapi/progreso/v3/api-docs,/v3/api-docs
+
+            - id: simulacion-docs
+              uri: lb://edusecurity-simulacion
+              predicates:
+                - Path=/openapi/simulacion/v3/api-docs
+              filters:
+                - RewritePath=/openapi/simulacion/v3/api-docs,/v3/api-docs
 
           # ------------------------- CORS global -------------------------
           globalcors:
@@ -136,6 +162,10 @@ resilience4j:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+      simulacionCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
 
 # ------------------------- Swagger agregado -------------------------
 springdoc:
@@ -150,6 +180,8 @@ springdoc:
         url: /openapi/contenido/v3/api-docs
       - name: Progreso y estadísticas
         url: /openapi/progreso/v3/api-docs
+      - name: Simulaciones de phishing
+        url: /openapi/simulacion/v3/api-docs
 
 # ------------------------- Descubrimiento -------------------------
 eureka:
