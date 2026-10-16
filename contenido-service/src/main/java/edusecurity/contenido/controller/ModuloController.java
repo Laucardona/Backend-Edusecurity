@@ -60,23 +60,23 @@ public class ModuloController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Crear un módulo (ADMIN)")
+    @PreAuthorize("hasAuthority('contenido:editar')")
+    @Operation(summary = "Crear un módulo (contenido:editar)")
     public ModuloResponse crear(@Valid @RequestBody ModuloRequest request) {
         return moduloService.crear(request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Actualizar un módulo (ADMIN)")
+    @PreAuthorize("hasAuthority('contenido:editar')")
+    @Operation(summary = "Actualizar un módulo (contenido:editar)")
     public ModuloResponse actualizar(@PathVariable Long id,
                                      @Valid @RequestBody ModuloRequest request) {
         return moduloService.actualizar(id, request);
     }
 
     @PatchMapping("/{id}/estado")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Activar o desactivar un módulo (ADMIN)")
+    @PreAuthorize("hasAuthority('contenido:publicar')")
+    @Operation(summary = "Activar o desactivar un módulo (contenido:publicar)")
     public ModuloResponse cambiarEstado(@PathVariable Long id,
                                         @Valid @RequestBody EstadoRequest request) {
         return moduloService.cambiarEstado(id, request);
@@ -84,8 +84,8 @@ public class ModuloController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Eliminar un módulo (ADMIN)",
+    @PreAuthorize("hasAuthority('contenido:editar')")
+    @Operation(summary = "Eliminar un módulo (contenido:editar)",
             description = "Si el módulo tiene lecciones se debe enviar force=true.")
     public void eliminar(@PathVariable Long id,
                          @RequestParam(defaultValue = "false") boolean force) {

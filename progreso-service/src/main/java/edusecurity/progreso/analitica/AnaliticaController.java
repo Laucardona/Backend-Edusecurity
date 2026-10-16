@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/analitica")
-@PreAuthorize("hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('analitica:panel')")
 @Tag(name = "Analítica", description = "Panel administrativo (HU33)")
 public class AnaliticaController {
 
@@ -24,7 +24,7 @@ public class AnaliticaController {
     }
 
     @GetMapping("/panel")
-    @Operation(summary = "Panel administrativo (ADMIN)",
+    @Operation(summary = "Panel administrativo (analitica:panel)",
             description = "Usuarios, progreso y simulaciones del periodo [desde, hasta] (YYYY-MM-DD, UTC). "
                     + "Por defecto, los últimos 30 días; máximo 366. Si una fuente no responde, su bloque es null "
                     + "y aparece en fuentesNoDisponibles. certificados es null hasta implementar RF22.")

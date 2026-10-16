@@ -20,6 +20,7 @@ import edusecurity.common.security.JwtProperties;
 import edusecurity.common.security.JwtSupport;
 import edusecurity.common.security.TokenInfo;
 import java.time.Instant;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -199,7 +200,8 @@ public class AuthenticationService {
     private AuthResponse emitirTokens(Usuario usuario) {
         String rol = (usuario.getRol() == null) ? "" : usuario.getRol().getNombre();
 
-        String accessToken = jwtSupport.generateAccessToken(usuario.getCorreo(), usuario.getId(), rol);
+        List<String> permisos = (usuario.getRol() == null) ? List.of() : usuario.getRol().codigosPermisos();
+        String accessToken = jwtSupport.generateAccessToken(usuario.getCorreo(), usuario.getId(), rol, permisos, false);
         String refreshToken = jwtSupport.generateRefreshToken(usuario.getCorreo(), usuario.getId(), rol);
 
         return AuthResponse.bearer(accessToken, refreshToken,

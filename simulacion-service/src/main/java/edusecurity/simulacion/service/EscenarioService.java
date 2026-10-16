@@ -2,6 +2,7 @@ package edusecurity.simulacion.service;
 
 import edusecurity.common.exception.BadRequestException;
 import edusecurity.common.exception.ResourceNotFoundException;
+import edusecurity.common.security.Permisos;
 import edusecurity.common.security.TokenInfo;
 import edusecurity.common.web.PageResponse;
 import edusecurity.simulacion.dto.EscenarioDetalle;
@@ -45,7 +46,7 @@ public class EscenarioService {
 
     @Transactional(readOnly = true)
     public PageResponse<EscenarioResumen> listar(TipoEscenario tipo, Nivel nivel, TokenInfo principal, Pageable pageable) {
-        Page<Escenario> page = escenarioRepository.buscar(tipo, nivel, !esAdmin(principal), pageable);
+        Page<Escenario> page = escenarioRepository.buscar(tipo, nivel, !puedeEditar(principal), pageable);
         Map<Long, Long> conteos = contarMensajes(page.getContent().stream().map(Escenario::getId).toList());
         return PageResponse.from(page.map(e -> EscenarioResumen.from(e, conteos.getOrDefault(e.getId(), 0L))));
     }
@@ -98,7 +99,7 @@ public class EscenarioService {
     /** Un escenario sin publicar solo lo ve el ADMIN; para el resto no existe. */
     Escenario buscarVisible(String uuid, TokenInfo principal) {
         return escenarioRepository.findByUuid(uuid)
-                .filter(e -> Boolean.TRUE.equals(e.getPublicado()) || esAdmin(principal))
+                .filter(e -> Boolean.TRUE.equals(e.getPublicado()) || puedeEditar(principal))
                 .orElseThrow(() -> ResourceNotFoundException.of("Escenario", uuid));
     }
 
@@ -161,7 +162,13 @@ public class EscenarioService {
                 .collect(Collectors.toMap(f -> (Long) f[0], f -> (Long) f[1], (a, b) -> a));
     }
 
-    static boolean esAdmin(TokenInfo principal) {
-        return principal != null && "ADMIN".equals(principal.rol());
+    /** Quien edita escenarios (simulaciones:editar) ve también los borradores. */
+    static boolean puedeEditar(TokenInfo principal) {
+        return principal != null && principal.tienePermiso(Permisos.SIMULACIONES_EDITAR);
+    }
+
+    /** Quien ve los resultados de todos (resultados:ver-todos) puede consultar sesiones ajenas. */
+    static boolean puedeVerTodos(TokenInfo principal) {
+        return principal != null && principal.tienePermiso(Permisos.RESULTADOS_VER_TODOS);
     }
 }

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/roles")
-@PreAuthorize("hasAnyRole('ADMIN', 'INTERNAL')")
+@PreAuthorize("hasAuthority('roles:administrar') or hasRole('INTERNAL')")
 @Tag(name = "Roles", description = "Administración de roles (solo ADMIN o servicios internos)")
 public class RolController {
 

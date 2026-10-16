@@ -79,15 +79,15 @@ public class SimulacionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Crear un escenario con su bandeja (ADMIN)", description = "Se crea sin publicar.")
+    @PreAuthorize("hasAuthority('simulaciones:editar')")
+    @Operation(summary = "Crear un escenario con su bandeja (simulaciones:editar)", description = "Se crea sin publicar.")
     public EscenarioDetalle crear(@Valid @RequestBody EscenarioRequest request) {
         return escenarioService.crear(request);
     }
 
     @PatchMapping("/{uuid}/publicacion")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Publicar o despublicar un escenario (ADMIN)")
+    @PreAuthorize("hasAuthority('simulaciones:editar')")
+    @Operation(summary = "Publicar o despublicar un escenario (simulaciones:editar)")
     public EscenarioDetalle publicar(@PathVariable String uuid, @Valid @RequestBody PublicacionRequest request) {
         return escenarioService.cambiarPublicacion(uuid, request);
     }

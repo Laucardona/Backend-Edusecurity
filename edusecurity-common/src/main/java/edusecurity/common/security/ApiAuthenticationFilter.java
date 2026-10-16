@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -68,9 +69,13 @@ public class ApiAuthenticationFilter extends OncePerRequestFilter {
 
     private void authenticate(HttpServletRequest request, TokenInfo info) {
         String rol = (info.rol() == null) ? "" : info.rol();
+        // ROLE_<rol> para las reglas por rol (p. ej. INTERNAL) y cada permiso como authority
+        // para @PreAuthorize("hasAuthority('<permiso>')") (ADR-012).
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + rol));
+        info.permisos().forEach(p -> authorities.add(new SimpleGrantedAuthority(p)));
         UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(info, null,
-                        List.of(new SimpleGrantedAuthority("ROLE_" + rol)));
+                new UsernamePasswordAuthenticationToken(info, null, authorities);
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authentication);
     }

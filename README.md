@@ -148,6 +148,27 @@ la contraseña nunca se escribe en los logs. Cámbiala después del primer ingre
 
 El rol por defecto de `POST /api/auth/register` es `ESTUDIANTE`.
 
+## Roles y permisos (ADR-012)
+
+Los endpoints se protegen por **permiso** (`@PreAuthorize("hasAuthority('contenido:editar')")`), no por rol.
+Un rol es un conjunto de permisos guardado en auth-service (tablas `permisos` y `rol_permisos`), y el
+access token lleva los permisos del rol en el claim `permisos`. Las llamadas internas siguen usando
+`hasRole('INTERNAL')` con `X-Service-Key`. El catálogo está en `edusecurity.common.security.Permisos`.
+
+| Permiso | ESTUDIANTE | GESTOR_CONTENIDO | SOPORTE | ADMIN |
+|---|:-:|:-:|:-:|:-:|
+| `perfil:gestionar` | ✔ | ✔ | ✔ | ✔ |
+| `contenido:ver`, `foros:participar`, `simulaciones:participar` | ✔ | ✔ | | ✔ |
+| `evaluaciones:responder` | ✔ | | | |
+| `contenido:editar`, `contenido:publicar`, `anuncios:gestionar`, `foros:configurar`, `foros:moderar`, `evaluaciones:editar`, `resultados:ver-todos`, `niveles:gestionar`, `simulaciones:editar`, `ia:generar-ejercicios`, `analitica:contenido` | | ✔ | | ✔ |
+| `usuarios:desbloquear`, `usuarios:ver-sesiones` | | | ✔ | ✔ |
+| `analitica:panel`, `usuarios:administrar`, `roles:administrar`, `organizaciones:administrar`, `auditoria:ver`, `alertas:gestionar`, `ia:ver-uso` | | | | ✔ |
+
+Endpoints que ya usan permisos: usuarios (`usuarios:administrar`), roles (`roles:administrar`),
+crear y publicar escenarios (`simulaciones:editar`), panel (`analitica:panel`), crear/editar/eliminar
+contenido (`contenido:editar`) y activar o desactivar un módulo (`contenido:publicar`). Ver borradores
+de escenarios requiere `simulaciones:editar`, y ver sesiones de simulación ajenas, `resultados:ver-todos`.
+
 ## Endpoints principales (vía Gateway)
 
 | Método | Ruta | Acceso | Descripción |

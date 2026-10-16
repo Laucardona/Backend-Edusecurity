@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/usuarios")
-@PreAuthorize("hasAnyRole('ADMIN', 'INTERNAL')")
+@PreAuthorize("hasAuthority('usuarios:administrar') or hasRole('INTERNAL')")
 @Tag(name = "Usuarios", description = "Administración de usuarios (solo ADMIN o servicios internos)")
 public class   UsuarioController {
 

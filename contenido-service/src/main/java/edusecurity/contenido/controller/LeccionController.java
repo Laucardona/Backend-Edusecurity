@@ -57,15 +57,15 @@ public class LeccionController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Crear una lección (ADMIN)")
+    @PreAuthorize("hasAuthority('contenido:editar')")
+    @Operation(summary = "Crear una lección (contenido:editar)")
     public LeccionResponse crear(@Valid @RequestBody LeccionRequest request) {
         return leccionService.crear(request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Actualizar una lección (ADMIN)")
+    @PreAuthorize("hasAuthority('contenido:editar')")
+    @Operation(summary = "Actualizar una lección (contenido:editar)")
     public LeccionResponse actualizar(@PathVariable Long id,
                                       @Valid @RequestBody LeccionRequest request) {
         return leccionService.actualizar(id, request);
@@ -73,8 +73,8 @@ public class LeccionController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Eliminar una lección (ADMIN)")
+    @PreAuthorize("hasAuthority('contenido:editar')")
+    @Operation(summary = "Eliminar una lección (contenido:editar)")
     public void eliminar(@PathVariable Long id) {
         leccionService.eliminar(id);
     }

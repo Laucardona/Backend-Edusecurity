@@ -227,10 +227,10 @@ public class SesionService {
                 .orElseThrow(() -> ResourceNotFoundException.of("Sesión", uuid));
     }
 
-    /** El dueño o un ADMIN pueden consultar. */
+    /** El dueño o quien tiene resultados:ver-todos pueden consultar. */
     private SesionSimulacion buscarLectura(String uuid, TokenInfo principal) {
         return sesionRepository.findByUuid(uuid)
-                .filter(s -> s.getUsuarioId().equals(principal.usuarioId()) || EscenarioService.esAdmin(principal))
+                .filter(s -> s.getUsuarioId().equals(principal.usuarioId()) || EscenarioService.puedeVerTodos(principal))
                 .orElseThrow(() -> ResourceNotFoundException.of("Sesión", uuid));
     }
 
