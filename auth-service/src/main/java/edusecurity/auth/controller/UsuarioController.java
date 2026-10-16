@@ -4,6 +4,8 @@ import edusecurity.auth.dto.EstadoRequest;
 import edusecurity.auth.dto.UsuarioRequest;
 import edusecurity.auth.dto.UsuarioResponse;
 import edusecurity.auth.dto.UsuarioUpdateRequest;
+import edusecurity.auth.dto.SesionResponse;
+import edusecurity.auth.service.SoporteUsuarioService;
 import edusecurity.auth.service.UsuarioService;
 import edusecurity.common.security.TokenInfo;
 import edusecurity.common.web.PageResponse;
@@ -30,13 +32,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/usuarios")
 @PreAuthorize("hasAuthority('usuarios:administrar') or hasRole('INTERNAL')")
-@Tag(name = "Usuarios", description = "Administración de usuarios (solo ADMIN o servicios internos)")
-public class   UsuarioController {
+@Tag(name = "Usuarios", description = "Administración de usuarios (usuarios:administrar) y soporte")
+public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final SoporteUsuarioService soporteService;
 
-    public UsuarioController(UsuarioService usuarioService) {
+    public UsuarioController(UsuarioService usuarioService, SoporteUsuarioService soporteService) {
         this.usuarioService = usuarioService;
+        this.soporteService = soporteService;
     }
 
     @GetMapping
@@ -81,5 +85,21 @@ public class   UsuarioController {
     public void eliminar(@PathVariable Long id,
                          @AuthenticationPrincipal TokenInfo principal) {
         usuarioService.eliminar(id, principal);
+    }
+
+    @PostMapping("/{id}/desbloquear")
+    @PreAuthorize("hasAuthority('usuarios:desbloquear')")
+    @Operation(summary = "Desbloquear una cuenta (usuarios:desbloquear)",
+            description = "Levanta el bloqueo temporal por intentos fallidos y reinicia el contador.")
+    public UsuarioResponse desbloquear(@PathVariable Long id) {
+        return soporteService.desbloquear(id);
+    }
+
+    @GetMapping("/{id}/sesiones")
+    @PreAuthorize("hasAuthority('usuarios:ver-sesiones')")
+    @Operation(summary = "Historial de sesiones de un usuario (usuarios:ver-sesiones)",
+            description = "Fecha, IP, dispositivo y si sigue activa. Nunca incluye el refresh token ni su hash.")
+    public PageResponse<SesionResponse> sesiones(@PathVariable Long id, @PageableDefault(size = 20) Pageable pageable) {
+        return soporteService.sesiones(id, pageable);
     }
 }

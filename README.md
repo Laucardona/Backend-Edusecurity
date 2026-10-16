@@ -182,10 +182,13 @@ de escenarios requiere `simulaciones:editar`, y ver sesiones de simulación ajen
 | POST | `/api/auth/password/restablecer` | Público | Cambia la contraseña con el token del correo y cierra todas las sesiones |
 | POST | `/api/auth/password/fortaleza` | Público | Indicador de fortaleza: puntaje 0 a 4, nivel y requisitos faltantes |
 | GET/PUT | `/api/auth/me` | Autenticado | Ver / actualizar mi perfil |
-| GET/POST/PUT/DELETE | `/api/usuarios` | ADMIN | CRUD de usuarios, paginado con `q` |
-| GET/POST | `/api/roles` | ADMIN | Roles del sistema |
+| GET/POST/PUT/DELETE | `/api/usuarios` | `usuarios:administrar` | CRUD de usuarios, paginado con `q` |
+| POST | `/api/usuarios/{id}/desbloquear` | `usuarios:desbloquear` | Levanta el bloqueo por intentos fallidos (soporte) |
+| GET | `/api/usuarios/{id}/sesiones` | `usuarios:ver-sesiones` | Historial de sesiones de un usuario, sin tokens ni hashes |
+| GET/POST | `/api/roles`, `/api/roles/{id}` | `roles:administrar` | Roles con sus permisos; crear un rol |
+| PUT | `/api/roles/{id}/permisos` | `roles:administrar` | Reemplaza los permisos de un rol (400 si un permiso no existe o si ADMIN perdería `roles:administrar`) |
 | GET | `/api/modulos`, `/api/lecciones` | Autenticado | Listado paginado con filtros `q`, `moduloId`, `soloActivos` |
-| POST/PUT/DELETE | `/api/modulos`, `/api/lecciones` | ADMIN | Gestión de contenido |
+| POST/PUT/DELETE | `/api/modulos`, `/api/lecciones` | `contenido:editar` | Gestión de contenido (`PATCH /api/modulos/{id}/estado`: `contenido:publicar`) |
 | POST | `/api/progreso` | Autenticado | Upsert de progreso (usuario propio; ADMIN: cualquiera) |
 | GET | `/api/progreso/mio` | Autenticado | Mi progreso paginado |
 | GET | `/api/progreso/simulaciones/mias` | Autenticado | Mis simulaciones terminadas (phishing y laboratorios guiados), las más recientes primero |
